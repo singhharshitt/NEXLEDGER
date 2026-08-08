@@ -1,0 +1,262 @@
+@import "tailwindcss";
+
+/* ============================================================
+   NEXLEDGER DESIGN SYSTEM — Tailwind v4 Theme
+   ============================================================ */
+
+@theme {
+  /* ── Colors: Primary ── */
+  --color-bg-primary: #F3F7F3;
+  --color-bg-white: #FFFFFF;
+  --color-bg-dark: #142814;
+  --color-bg-card: #FFFFFF;
+  --color-bg-elevated: #EEF5EE;
+  --color-bg-muted: #F8FAF8;
+  --color-bg-overlay: rgba(10, 31, 10, 0.5);
+
+  /* ── Colors: Text ── */
+  --color-text-primary: #0A1F0A;
+  --color-text-secondary: #5A6B5A;
+  --color-text-muted: #8A9A8A;
+  --color-text-inverse: #FFFFFF;
+  --color-text-accent: #A3E635;
+
+  /* ── Colors: Border ── */
+  --color-border-default: #D4E4D4;
+  --color-border-subtle: #E2EFE2;
+  --color-border-focus: #142814;
+
+  /* ── Colors: Accent ── */
+  --color-accent-primary: #142814;
+  --color-accent-lime: #B8E986;
+  --color-accent-lime-bright: #A3E635;
+  --color-accent-hover: #1E3C1E;
+
+  /* ── Colors: Semantic ── */
+  --color-danger: #DC2626;
+  --color-danger-bg: #FEF2F2;
+  --color-danger-border: #FECACA;
+  --color-warning: #F59E0B;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-border: #FDE68A;
+  --color-success: #16A34A;
+  --color-success-bg: #F0FDF4;
+  --color-success-border: #BBF7D0;
+  --color-info: #2563EB;
+  --color-info-bg: #EFF6FF;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 2px 0 rgba(10, 31, 10, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(10, 31, 10, 0.06), 0 2px 4px -2px rgba(10, 31, 10, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(10, 31, 10, 0.06), 0 4px 6px -4px rgba(10, 31, 10, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(10, 31, 10, 0.06), 0 8px 10px -6px rgba(10, 31, 10, 0.04);
+  --shadow-glow: 0 0 20px rgba(163, 230, 53, 0.15);
+  --shadow-card-hover: 0 8px 25px -5px rgba(10, 31, 10, 0.08);
+
+  /* ── Radius ── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* ── Typography: Font Families ── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  /* ── Spacing: Sidebar ── */
+  --sidebar-width: 256px;
+  --sidebar-collapsed: 64px;
+  --topnav-height: 64px;
+
+  /* ── Transitions ── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Animation ── */
+  --animate-fade-in: fade-in 0.3s var(--ease-out-expo);
+  --animate-slide-up: slide-up 0.4s var(--ease-out-expo);
+  --animate-slide-in-right: slide-in-right 0.3s var(--ease-out-expo);
+}
+
+/* ============================================================
+   KEYFRAMES
+   ============================================================ */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ============================================================
+   BASE STYLES
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Focus styles ── */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Selection ── */
+::selection {
+  background-color: var(--color-accent-lime);
+  color: var(--color-accent-primary);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ============================================================
+   TYPOGRAPHY UTILITIES
+   ============================================================ */
+.text-display {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.text-h1 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+.text-h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.text-h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.text-h4 {
+  font-size: 1.286rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.text-body {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.text-body-sm {
+  font-size: 0.929rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.text-caption {
+  font-size: 0.857rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.text-mono {
+  font-family: var(--font-mono);
+  font-size: 0.929rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.text-mono-sm {
+  font-family: var(--font-mono);
+  font-size: 0.786rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.text-metadata {
+  font-size: 0.714rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+}
+
+/* ── Tabular numbers for financial data ── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
