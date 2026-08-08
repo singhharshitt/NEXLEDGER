@@ -3,7 +3,7 @@ import { pool } from "../config/database";
 import { parsePagination } from "../utils/pagination";
 import { toDbCustomerType, toDbCustomerStatus } from "../utils/mappers";
 
-const SORT_FIELDS = ["created_at", "customer_name", "status", "follow_up_date"];
+const SORT_FIELDS = ["created_at", "contact_name", "status", "follow_up_date"];
 
 export async function listCustomers(query: Record<string, unknown>) {
   const { page, limit, offset } = parsePagination(query as { page?: string; limit?: string; pageSize?: string });
@@ -13,7 +13,7 @@ export async function listCustomers(query: Record<string, unknown>) {
 
   if (query.search) {
     conditions.push(
-      `(customer_name ILIKE $${idx} OR business_name ILIKE $${idx} OR mobile ILIKE $${idx} OR email ILIKE $${idx})`
+      `(contact_name ILIKE $${idx} OR business_name ILIKE $${idx} OR mobile ILIKE $${idx} OR email ILIKE $${idx})`
     );
     params.push(`%${query.search}%`);
     idx++;
@@ -23,7 +23,7 @@ export async function listCustomers(query: Record<string, unknown>) {
     params.push(toDbCustomerStatus(String(query.status)));
   }
   if (query.type && query.type !== "all") {
-    conditions.push(`customer_type = $${idx++}`);
+    conditions.push(`type = $${idx++}`);
     params.push(toDbCustomerType(String(query.type)));
   }
   if (query.followUpOverdue) {
@@ -57,9 +57,10 @@ export async function findCustomerById(id: string) {
 export async function createCustomer(data: Record<string, unknown>) {
   const { rows } = await pool.query(
     `INSERT INTO customers (
-      customer_name, mobile, email, business_name, gst_number,
-      customer_type, address, city, state, pincode, status, follow_up_date, notes
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      contact_name, mobile, email, business_name, gstin,
+      type, address, city, state, status, follow_up_date, notes,
+      credit_limit, created_by
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
     RETURNING *`,
     [
       data.name,
@@ -71,10 +72,11 @@ export async function createCustomer(data: Record<string, unknown>) {
       data.address ?? "",
       data.city ?? "",
       data.state ?? "",
-      data.pincode ?? "",
       toDbCustomerStatus(String(data.status)),
       data.followUpDate || null,
       data.notes || null,
+      data.creditLimit ?? null,
+      data.createdBy ?? null,
     ]
   );
   return rows[0];
@@ -86,21 +88,20 @@ export async function updateCustomer(id: string, data: Record<string, unknown>) 
 
   const { rows } = await pool.query(
     `UPDATE customers SET
-      customer_name = COALESCE($1, customer_name),
+      contact_name = COALESCE($1, contact_name),
       mobile = COALESCE($2, mobile),
       email = COALESCE($3, email),
       business_name = COALESCE($4, business_name),
-      gst_number = COALESCE($5, gst_number),
-      customer_type = COALESCE($6, customer_type),
+      gstin = COALESCE($5, gstin),
+      type = COALESCE($6, type),
       address = COALESCE($7, address),
       city = COALESCE($8, city),
       state = COALESCE($9, state),
-      pincode = COALESCE($10, pincode),
-      status = COALESCE($11, status),
-      follow_up_date = COALESCE($12, follow_up_date),
-      notes = COALESCE($13, notes),
+      status = COALESCE($10, status),
+      follow_up_date = COALESCE($11, follow_up_date),
+      notes = COALESCE($12, notes),
       updated_at = NOW()
-    WHERE id = $14
+    WHERE id = $13
     RETURNING *`,
     [
       data.name ?? null,
@@ -112,7 +113,6 @@ export async function updateCustomer(id: string, data: Record<string, unknown>) 
       data.address ?? null,
       data.city ?? null,
       data.state ?? null,
-      data.pincode ?? null,
       data.status ? toDbCustomerStatus(String(data.status)) : null,
       data.followUpDate ?? null,
       data.notes ?? null,
@@ -132,7 +132,7 @@ export async function softDeleteCustomer(id: string) {
 
 export async function listFollowUps(customerId: string) {
   const { rows } = await pool.query(
-    `SELECT cf.*, u.name AS created_by_name
+    `SELECT cf.*, u.full_name AS created_by_name
      FROM customer_followups cf
      JOIN users u ON u.id = cf.created_by
      WHERE cf.customer_id = $1
@@ -150,7 +150,7 @@ export async function createFollowUp(
 ) {
   const db = client ?? pool;
   const { rows } = await db.query(
-    `INSERT INTO customer_followups (customer_id, follow_up_date, note, created_by)
+    `INSERT INTO customer_followups (customer_id, follow_up_date, notes, created_by)
      VALUES ($1, $2, $3, $4)
      RETURNING *`,
     [customerId, data.date, data.notes, createdBy]
@@ -161,6 +161,6 @@ export async function createFollowUp(
     [data.date, customerId]
   );
 
-  const userResult = await db.query(`SELECT name FROM users WHERE id = $1`, [createdBy]);
-  return { ...rows[0], created_by_name: userResult.rows[0]?.name };
+  const userResult = await db.query(`SELECT full_name FROM users WHERE id = $1`, [createdBy]);
+  return { ...rows[0], created_by_name: userResult.rows[0]?.full_name };
 }

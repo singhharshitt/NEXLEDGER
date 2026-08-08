@@ -9,13 +9,13 @@ const SORT_FIELDS = ["created_at", "challan_number", "status", "total_quantity"]
 async function generateChallanNumber(client: PoolClient): Promise<string> {
   const year = new Date().getFullYear();
   const { rows } = await client.query(
-    `INSERT INTO challan_sequences (year, last_number)
+    `INSERT INTO challan_sequences (year, last_sequence)
      VALUES ($1, 1)
-     ON CONFLICT (year) DO UPDATE SET last_number = challan_sequences.last_number + 1
-     RETURNING last_number`,
+     ON CONFLICT (year) DO UPDATE SET last_sequence = challan_sequences.last_sequence + 1
+     RETURNING last_sequence`,
     [year]
   );
-  const num = String(rows[0].last_number).padStart(6, "0");
+  const num = String(rows[0].last_sequence).padStart(6, "0");
   return `CH-${year}-${num}`;
 }
 
@@ -27,7 +27,7 @@ export async function listChallans(query: Record<string, unknown>) {
 
   if (query.search) {
     conditions.push(
-      `(c.challan_number ILIKE $${idx} OR cu.customer_name ILIKE $${idx} OR cu.business_name ILIKE $${idx})`
+      `(c.challan_number ILIKE $${idx} OR cu.contact_name ILIKE $${idx} OR cu.business_name ILIKE $${idx})`
     );
     params.push(`%${query.search}%`);
     idx++;
@@ -60,7 +60,8 @@ export async function listChallans(query: Record<string, unknown>) {
   );
 
   const { rows } = await pool.query(
-    `SELECT c.*, cu.customer_name, cu.business_name AS customer_business, u.name AS created_by_name
+    `SELECT c.*, cu.contact_name AS customer_name, cu.business_name AS customer_business,
+            u.full_name AS created_by_name
      FROM challans c
      JOIN customers cu ON cu.id = c.customer_id
      JOIN users u ON u.id = c.created_by
@@ -76,7 +77,8 @@ export async function listChallans(query: Record<string, unknown>) {
 export async function findChallanById(id: string, client?: PoolClient) {
   const db = client ?? pool;
   const { rows } = await db.query(
-    `SELECT c.*, cu.customer_name, cu.business_name AS customer_business, u.name AS created_by_name
+    `SELECT c.*, cu.contact_name AS customer_name, cu.business_name AS customer_business,
+            u.full_name AS created_by_name
      FROM challans c
      JOIN customers cu ON cu.id = c.customer_id
      JOIN users u ON u.id = c.created_by
@@ -135,7 +137,7 @@ export async function createChallan(
     const totalQuantity = data.items.reduce((s, i) => s + i.quantity, 0);
     const totalAmount = itemRows.reduce((s, i) => s + i.totalPrice, 0);
     const challanNumber = await generateChallanNumber(client);
-    const status = String(data.status ?? "draft").toUpperCase() === "CONFIRMED" ? "DRAFT" : "DRAFT";
+    const status = "DRAFT";
 
     const challanResult = await client.query(
       `INSERT INTO challans (challan_number, customer_id, total_quantity, total_amount, status, notes, created_by)
@@ -154,7 +156,7 @@ export async function createChallan(
         [
           challan.id,
           row.product.id,
-          row.product.product_name,
+          row.product.name,
           row.product.sku,
           row.product.unit_price,
           row.quantity,
@@ -229,7 +231,7 @@ export async function updateChallan(
           [
             id,
             product.id,
-            product.product_name,
+            product.name,
             product.sku,
             product.unit_price,
             item.quantity,
@@ -298,7 +300,7 @@ export async function confirmChallan(id: string, userId: string) {
 
       if (product.current_stock < itemQty) {
         throw conflict(
-          `Insufficient stock for ${product.product_name}. Available: ${product.current_stock}, Required: ${itemQty}`
+          `Insufficient stock for ${product.name}. Available: ${product.current_stock}, Required: ${itemQty}`
         );
       }
     }
@@ -312,13 +314,13 @@ export async function confirmChallan(id: string, userId: string) {
       ]);
 
       await client.query(
-        `INSERT INTO stock_movements (product_id, quantity_changed, movement_type, reason, reference, created_by)
+        `INSERT INTO stock_movements (product_id, quantity, type, notes, reference_id, created_by)
          VALUES ($1, $2, 'OUT', $3, $4, $5)`,
         [
           item.product_id,
           item.quantity,
           `Challan confirmation: ${challan.challan_number}`,
-          challan.challan_number,
+          challan.id,
           userId,
         ]
       );
@@ -376,13 +378,13 @@ export async function cancelChallan(id: string, userId: string) {
         ]);
 
         await client.query(
-          `INSERT INTO stock_movements (product_id, quantity_changed, movement_type, reason, reference, created_by)
+          `INSERT INTO stock_movements (product_id, quantity, type, notes, reference_id, created_by)
            VALUES ($1, $2, 'IN', $3, $4, $5)`,
           [
             item.product_id,
             item.quantity,
             `Challan cancellation restore: ${challan.challan_number}`,
-            challan.challan_number,
+            challan.id,
             userId,
           ]
         );
@@ -413,7 +415,8 @@ export async function countChallansByStatus(status: string): Promise<number> {
 
 export async function getRecentChallans(limit = 5) {
   const { rows } = await pool.query(
-    `SELECT c.*, cu.customer_name, cu.business_name AS customer_business, u.name AS created_by_name
+    `SELECT c.*, cu.contact_name AS customer_name, cu.business_name AS customer_business,
+            u.full_name AS created_by_name
      FROM challans c
      JOIN customers cu ON cu.id = c.customer_id
      JOIN users u ON u.id = c.created_by
@@ -421,4 +424,33 @@ export async function getRecentChallans(limit = 5) {
     [limit]
   );
   return rows;
+}
+
+export async function listChallansWithItems(query: Record<string, unknown>) {
+  const result = await listChallans(query);
+  const items = await Promise.all(
+    result.rows.map(async (row) => {
+      const challanItems = await getChallanItems(row.id);
+      return { challan: row, items: challanItems };
+    })
+  );
+  return {
+    items,
+    pagination: {
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / result.limit),
+    },
+  };
+}
+
+export async function getRecentChallansWithItems(limit = 5) {
+  const rows = await getRecentChallans(limit);
+  return Promise.all(
+    rows.map(async (row) => {
+      const challanItems = await getChallanItems(row.id);
+      return { challan: row, items: challanItems };
+    })
+  );
 }

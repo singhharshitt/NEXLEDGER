@@ -6,7 +6,7 @@ import { toDbRole } from "../utils/mappers";
 
 export async function findUserByEmail(email: string) {
   const { rows } = await pool.query(
-    `SELECT id, name, email, password_hash, role, is_active, created_at, updated_at
+    `SELECT id, full_name, email, password_hash, role, is_active, created_at, updated_at
      FROM users WHERE LOWER(email) = LOWER($1)`,
     [email.trim()]
   );
@@ -15,7 +15,7 @@ export async function findUserByEmail(email: string) {
 
 export async function findUserById(id: string) {
   const { rows } = await pool.query(
-    `SELECT id, name, email, role, is_active, created_at, updated_at
+    `SELECT id, full_name, email, role, is_active, created_at, updated_at
      FROM users WHERE id = $1`,
     [id]
   );
@@ -24,14 +24,14 @@ export async function findUserById(id: string) {
 
 export async function listUsers() {
   const { rows } = await pool.query(
-    `SELECT id, name, email, role, is_active, created_at, updated_at
+    `SELECT id, full_name, email, role, is_active, created_at, updated_at
      FROM users ORDER BY created_at DESC`
   );
   return rows;
 }
 
 export async function createUser(data: {
-  name: string;
+  fullName: string;
   email: string;
   password: string;
   role: string;
@@ -39,25 +39,25 @@ export async function createUser(data: {
   const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_ROUNDS);
   const role = toDbRole(data.role);
   const { rows } = await pool.query(
-    `INSERT INTO users (name, email, password_hash, role)
+    `INSERT INTO users (full_name, email, password_hash, role)
      VALUES ($1, LOWER($2), $3, $4)
-     RETURNING id, name, email, role, is_active, created_at, updated_at`,
-    [data.name, data.email.trim(), passwordHash, role]
+     RETURNING id, full_name, email, role, is_active, created_at, updated_at`,
+    [data.fullName, data.email.trim(), passwordHash, role]
   );
   return rows[0];
 }
 
 export async function updateUser(
   id: string,
-  data: { name?: string; email?: string; role?: string; isActive?: boolean }
+  data: { fullName?: string; email?: string; role?: string; isActive?: boolean }
 ) {
   const fields: string[] = [];
   const values: unknown[] = [];
   let idx = 1;
 
-  if (data.name !== undefined) {
-    fields.push(`name = $${idx++}`);
-    values.push(data.name);
+  if (data.fullName !== undefined) {
+    fields.push(`full_name = $${idx++}`);
+    values.push(data.fullName);
   }
   if (data.email !== undefined) {
     fields.push(`email = LOWER($${idx++})`);
@@ -77,7 +77,7 @@ export async function updateUser(
 
   const { rows } = await pool.query(
     `UPDATE users SET ${fields.join(", ")} WHERE id = $${idx}
-     RETURNING id, name, email, role, is_active, created_at, updated_at`,
+     RETURNING id, full_name, email, role, is_active, created_at, updated_at`,
     values
   );
   return rows[0] ?? null;

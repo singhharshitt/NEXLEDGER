@@ -1,60 +1,49 @@
 import type { Request, Response, NextFunction } from "express";
 import type { ZodSchema } from "zod";
-import { AppError } from "../utils/errors";
+
+declare global {
+  namespace Express {
+    interface Request {
+      validatedBody?: unknown;
+      validatedQuery?: unknown;
+      validatedParams?: unknown;
+    }
+  }
+}
 
 export function validateBody<T>(schema: ZodSchema<T>) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.body);
-    if (!result.success) {
-      next(
-        new AppError(
-          422,
-          "Validation failed",
-          "VALIDATION_ERROR",
-          result.error.issues.map((i) => ({ field: i.path.join("."), message: i.message }))
-        )
-      );
-      return;
+    try {
+      const data = schema.parse(req.body);
+      req.body = data;
+      req.validatedBody = data;
+      next();
+    } catch (error) {
+      next(error);
     }
-    req.body = result.data;
-    next();
   };
 }
 
 export function validateQuery<T>(schema: ZodSchema<T>) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.query);
-    if (!result.success) {
-      next(
-        new AppError(
-          422,
-          "Validation failed",
-          "VALIDATION_ERROR",
-          result.error.issues.map((i) => ({ field: i.path.join("."), message: i.message }))
-        )
-      );
-      return;
+    try {
+      const data = schema.parse(req.query);
+      req.validatedQuery = data;
+      next();
+    } catch (error) {
+      next(error);
     }
-    req.query = result.data as typeof req.query;
-    next();
   };
 }
 
 export function validateParams<T>(schema: ZodSchema<T>) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.params);
-    if (!result.success) {
-      next(
-        new AppError(
-          422,
-          "Validation failed",
-          "VALIDATION_ERROR",
-          result.error.issues.map((i) => ({ field: i.path.join("."), message: i.message }))
-        )
-      );
-      return;
+    try {
+      const data = schema.parse(req.params);
+      req.validatedParams = data;
+      next();
+    } catch (error) {
+      next(error);
     }
-    req.params = result.data as typeof req.params;
-    next();
   };
 }

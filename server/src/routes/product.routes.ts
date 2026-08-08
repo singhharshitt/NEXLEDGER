@@ -43,7 +43,7 @@ router.post(
 
 router.put(
   "/:id",
-  authorize("ADMIN", "WAREHOUSE"),
+  authorize("ADMIN"),
   validateParams(uuidParamSchema),
   validateBody(updateProductSchema),
   productController.updateProduct

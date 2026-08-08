@@ -29,7 +29,7 @@ async function seed(): Promise<void> {
   const userIds: Record<string, string> = {};
   for (const u of users) {
     const { rows } = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, role`,
+      `INSERT INTO users (full_name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, role`,
       [u.name, u.email, passwordHash, u.role]
     );
     userIds[u.role] = rows[0].id;
@@ -51,15 +51,15 @@ async function seed(): Promise<void> {
   const customerIds: string[] = [];
   for (const [name, mobile, email, business, type, status, city] of customers) {
     const { rows } = await pool.query(
-      `INSERT INTO customers (customer_name, mobile, email, business_name, customer_type, status, address, city, state, pincode)
-       VALUES ($1,$2,$3,$4,$5,$6,'Main Street',$7,'Maharashtra','400001') RETURNING id`,
+      `INSERT INTO customers (contact_name, mobile, email, business_name, type, status, address, city, state)
+       VALUES ($1,$2,$3,$4,$5,$6,'Main Street',$7,'Maharashtra') RETURNING id`,
       [name, mobile, email, business, type, status, city]
     );
     customerIds.push(rows[0].id);
   }
 
   await pool.query(
-    `INSERT INTO customer_followups (customer_id, follow_up_date, note, created_by)
+    `INSERT INTO customer_followups (customer_id, follow_up_date, notes, created_by)
      VALUES ($1, CURRENT_DATE + 3, 'Initial follow-up scheduled', $2)`,
     [customerIds[0], userIds.SALES]
   );
@@ -83,17 +83,17 @@ async function seed(): Promise<void> {
   ];
 
   const productIds: string[] = [];
-  for (const [name, sku, category, price, stock, minStock, location] of products) {
+  for (const [name, sku, category, price, stock, minStock] of products) {
     const { rows } = await pool.query(
-      `INSERT INTO products (product_name, sku, category, unit_price, current_stock, minimum_stock, warehouse_location, unit)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'pcs') RETURNING id`,
-      [name, sku, category, price, stock, minStock, location]
+      `INSERT INTO products (name, sku, category, unit_price, current_stock, minimum_stock, unit)
+       VALUES ($1,$2,$3,$4,$5,$6,'pcs') RETURNING id`,
+      [name, sku, category, price, stock, minStock]
     );
     productIds.push(rows[0].id);
 
-    if (stock > 0) {
+    if (Number(stock) > 0) {
       await pool.query(
-        `INSERT INTO stock_movements (product_id, quantity_changed, movement_type, reason, created_by)
+        `INSERT INTO stock_movements (product_id, quantity, type, notes, created_by)
          VALUES ($1, $2, 'IN', 'Initial stock', $3)`,
         [rows[0].id, stock, userIds.WAREHOUSE]
       );
@@ -116,7 +116,7 @@ async function seed(): Promise<void> {
       [draftRows[0].id, productIds[0]]
     );
     await client.query(
-      `INSERT INTO challan_sequences (year, last_number) VALUES (2026, 1) ON CONFLICT (year) DO UPDATE SET last_number = GREATEST(challan_sequences.last_number, 1)`
+      `INSERT INTO challan_sequences (year, last_sequence) VALUES (2026, 1) ON CONFLICT (year) DO UPDATE SET last_sequence = GREATEST(challan_sequences.last_sequence, 1)`
     );
 
     const confirmNumber = "CH-2026-000002";
@@ -132,12 +132,12 @@ async function seed(): Promise<void> {
     );
     await client.query(`UPDATE products SET current_stock = current_stock - 3 WHERE id = $1`, [productIds[1]]);
     await client.query(
-      `INSERT INTO stock_movements (product_id, quantity_changed, movement_type, reason, reference, created_by)
-       VALUES ($1, 3, 'OUT', 'Challan confirmation: CH-2026-000002', 'CH-2026-000002', $2)`,
+      `INSERT INTO stock_movements (product_id, quantity, type, notes, reference_id, created_by)
+       VALUES ($1, 3, 'OUT', 'Challan confirmation: CH-2026-000002', NULL, $2)`,
       [productIds[1], userIds.SALES]
     );
     await client.query(
-      `INSERT INTO challan_sequences (year, last_number) VALUES (2026, 2) ON CONFLICT (year) DO UPDATE SET last_number = GREATEST(challan_sequences.last_number, 2)`
+      `INSERT INTO challan_sequences (year, last_sequence) VALUES (2026, 2) ON CONFLICT (year) DO UPDATE SET last_sequence = GREATEST(challan_sequences.last_sequence, 2)`
     );
 
     await client.query("COMMIT");

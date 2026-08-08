@@ -13,15 +13,6 @@ app.set("trust proxy", 1);
 
 app.use(helmet());
 app.use(
-  cors({
-    origin: env.CORS_ORIGIN.split(",").map((o) => o.trim()),
-    credentials: true,
-  })
-);
-app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
-app.use(express.json({ limit: "1mb" }));
-
-app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: env.NODE_ENV === "production" ? 300 : 1000,
@@ -29,6 +20,14 @@ app.use(
     legacyHeaders: false,
   })
 );
+app.use(
+  cors({
+    origin: env.CORS_ORIGIN.split(",").map((o) => o.trim()),
+    credentials: true,
+  })
+);
+app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(express.json({ limit: "1mb" }));
 
 app.use("/api", routes);
 

@@ -3,7 +3,7 @@ import { pool } from "../config/database";
 import { parsePagination } from "../utils/pagination";
 import { conflict } from "../utils/errors";
 
-const SORT_FIELDS = ["created_at", "product_name", "sku", "category", "current_stock"];
+const SORT_FIELDS = ["created_at", "name", "sku", "category", "current_stock"];
 
 export async function listProducts(query: Record<string, unknown>) {
   const { page, limit, offset } = parsePagination(query as { page?: string; limit?: string; pageSize?: string });
@@ -12,7 +12,7 @@ export async function listProducts(query: Record<string, unknown>) {
   let idx = 1;
 
   if (query.search) {
-    conditions.push(`(product_name ILIKE $${idx} OR sku ILIKE $${idx} OR category ILIKE $${idx})`);
+    conditions.push(`(name ILIKE $${idx} OR sku ILIKE $${idx} OR category ILIKE $${idx})`);
     params.push(`%${query.search}%`);
     idx++;
   }
@@ -61,9 +61,9 @@ export async function findProductBySku(sku: string) {
 export async function createProduct(data: Record<string, unknown>) {
   const { rows } = await pool.query(
     `INSERT INTO products (
-      product_name, sku, category, description, unit_price,
-      minimum_stock, unit, warehouse_location, current_stock
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0)
+      name, sku, category, description, unit_price,
+      minimum_stock, unit, current_stock
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,0)
     RETURNING *`,
     [
       data.name,
@@ -73,7 +73,6 @@ export async function createProduct(data: Record<string, unknown>) {
       data.unitPrice,
       data.minStock ?? 0,
       data.unit ?? "pcs",
-      data.warehouse ?? "Main",
     ]
   );
   return rows[0];
@@ -82,16 +81,15 @@ export async function createProduct(data: Record<string, unknown>) {
 export async function updateProduct(id: string, data: Record<string, unknown>) {
   const { rows } = await pool.query(
     `UPDATE products SET
-      product_name = COALESCE($1, product_name),
+      name = COALESCE($1, name),
       sku = COALESCE($2, sku),
       category = COALESCE($3, category),
       description = COALESCE($4, description),
       unit_price = COALESCE($5, unit_price),
       minimum_stock = COALESCE($6, minimum_stock),
       unit = COALESCE($7, unit),
-      warehouse_location = COALESCE($8, warehouse_location),
       updated_at = NOW()
-    WHERE id = $9
+    WHERE id = $8
     RETURNING *`,
     [
       data.name ?? null,
@@ -101,7 +99,6 @@ export async function updateProduct(id: string, data: Record<string, unknown>) {
       data.unitPrice ?? null,
       data.minStock ?? null,
       data.unit ?? null,
-      data.warehouse ?? null,
       id,
     ]
   );
@@ -147,17 +144,17 @@ export async function adjustStock(
     ]);
 
     const { rows } = await c.query(
-      `INSERT INTO stock_movements (product_id, quantity_changed, movement_type, reason, reference, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO stock_movements (product_id, quantity, type, notes, reference_id, created_by)
+       VALUES ($1, $2, $3, $4, $5::uuid, $6)
        RETURNING *`,
       [productId, quantity, movementType, reason, reference ?? null, createdBy]
     );
 
-    const userResult = await c.query(`SELECT name FROM users WHERE id = $1`, [createdBy]);
+    const userResult = await c.query(`SELECT full_name FROM users WHERE id = $1`, [createdBy]);
     return {
       movement: rows[0],
-      productName: product.product_name,
-      createdByName: userResult.rows[0]?.name,
+      productName: product.name,
+      createdByName: userResult.rows[0]?.full_name,
       newStock,
     };
   };
@@ -179,7 +176,8 @@ export async function adjustStock(
 
 export async function listStockMovements(productId: string) {
   const { rows } = await pool.query(
-    `SELECT sm.*, p.product_name, u.name AS created_by_name
+    `SELECT sm.*, p.name AS product_name, sm.type AS movement_type, sm.quantity AS quantity_changed,
+            u.full_name AS created_by_name
      FROM stock_movements sm
      JOIN products p ON p.id = sm.product_id
      JOIN users u ON u.id = sm.created_by
@@ -192,7 +190,8 @@ export async function listStockMovements(productId: string) {
 
 export async function listAllMovements(limit = 20) {
   const { rows } = await pool.query(
-    `SELECT sm.*, p.product_name, u.name AS created_by_name
+    `SELECT sm.*, p.name AS product_name, sm.type AS movement_type, sm.quantity AS quantity_changed,
+            u.full_name AS created_by_name
      FROM stock_movements sm
      JOIN products p ON p.id = sm.product_id
      JOIN users u ON u.id = sm.created_by

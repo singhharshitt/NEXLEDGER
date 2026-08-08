@@ -1,23 +1,25 @@
-import { Pool } from "pg";
-import { env } from "./env";
-
-const isLocalDatabase =
-  env.DATABASE_URL.includes("localhost") ||
-  env.DATABASE_URL.includes("127.0.0.1") ||
-  env.DATABASE_URL.includes("host.docker.internal");
+import { Pool } from 'pg';
+import { env } from './env';
 
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  ssl: isLocalDatabase ? false : { rejectUnauthorized: false },
+  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 20,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 2_000,
 });
 
 export async function checkDatabase(): Promise<void> {
-  await pool.query("SELECT 1");
+  const client = await pool.connect();
+  try {
+    await client.query('SELECT 1');
+    console.log('✅ PostgreSQL connected');
+  } finally {
+    client.release();
+  }
 }
 
 export async function closeDatabase(): Promise<void> {
   await pool.end();
+  console.log('PostgreSQL pool closed.');
 }

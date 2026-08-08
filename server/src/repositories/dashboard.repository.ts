@@ -34,19 +34,20 @@ export async function getRecentActivity(limit = 10) {
 
   const [customers, challans, movements, followups] = await Promise.all([
     pool.query(
-      `SELECT c.id, c.customer_name, c.created_at, u.name AS user_name
+      `SELECT c.id, c.contact_name, c.created_at, u.full_name AS user_name
        FROM customers c LEFT JOIN users u ON FALSE
        ORDER BY c.created_at DESC LIMIT $1`,
       [limit]
     ),
     pool.query(
-      `SELECT c.id, c.challan_number, c.status, c.created_at, c.confirmed_at, u.name AS user_name
+      `SELECT c.id, c.challan_number, c.status, c.created_at, c.confirmed_at, u.full_name AS user_name
        FROM challans c JOIN users u ON u.id = c.created_by
        ORDER BY c.created_at DESC LIMIT $1`,
       [limit]
     ),
     pool.query(
-      `SELECT sm.id, sm.movement_type, sm.quantity_changed, sm.created_at, p.product_name, u.name AS user_name
+      `SELECT sm.id, sm.type AS movement_type, sm.quantity AS quantity_changed, sm.created_at,
+              p.name AS product_name, u.full_name AS user_name
        FROM stock_movements sm
        JOIN products p ON p.id = sm.product_id
        JOIN users u ON u.id = sm.created_by
@@ -54,7 +55,7 @@ export async function getRecentActivity(limit = 10) {
       [limit]
     ),
     pool.query(
-      `SELECT cf.id, cf.created_at, cu.customer_name, u.name AS user_name
+      `SELECT cf.id, cf.created_at, cu.contact_name, u.full_name AS user_name
        FROM customer_followups cf
        JOIN customers cu ON cu.id = cf.customer_id
        JOIN users u ON u.id = cf.created_by
@@ -67,7 +68,7 @@ export async function getRecentActivity(limit = 10) {
     activities.push({
       id: `cust-${row.id}`,
       type: "customer_created",
-      description: `New customer added: ${row.customer_name}`,
+      description: `New customer added: ${row.contact_name}`,
       user: "System",
       timestamp: row.created_at.toISOString(),
     });
@@ -100,7 +101,7 @@ export async function getRecentActivity(limit = 10) {
     activities.push({
       id: `fu-${row.id}`,
       type: "followup_added",
-      description: `Follow-up added for ${row.customer_name}`,
+      description: `Follow-up added for ${row.contact_name}`,
       user: row.user_name,
       timestamp: row.created_at.toISOString(),
     });
@@ -115,8 +116,8 @@ export async function getStockChartData(days = 7) {
   const { rows } = await pool.query(
     `SELECT
        DATE(created_at) AS date,
-       SUM(CASE WHEN movement_type = 'IN' THEN quantity_changed ELSE 0 END)::int AS inward,
-       SUM(CASE WHEN movement_type = 'OUT' THEN quantity_changed ELSE 0 END)::int AS outward
+       SUM(CASE WHEN type = 'IN' THEN quantity ELSE 0 END)::int AS inward,
+       SUM(CASE WHEN type = 'OUT' THEN quantity ELSE 0 END)::int AS outward
      FROM stock_movements
      WHERE created_at >= NOW() - ($1 || ' days')::interval
      GROUP BY DATE(created_at)

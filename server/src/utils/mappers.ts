@@ -73,7 +73,7 @@ export function computeStockStatus(currentStock: number, minStock: number): stri
 export function mapUser(row: Record<string, unknown>) {
   return {
     id: row.id,
-    name: row.name,
+    full_name: row.full_name,
     email: row.email,
     role: toClientRole(row.role as Role),
     createdAt: (row.created_at as Date).toISOString(),
@@ -83,17 +83,17 @@ export function mapUser(row: Record<string, unknown>) {
 export function mapCustomer(row: Record<string, unknown>) {
   return {
     id: row.id,
-    name: row.customer_name,
+    name: row.contact_name,
     businessName: row.business_name,
-    type: toClientCustomerType(row.customer_type as CustomerType),
+    type: toClientCustomerType(row.type as CustomerType),
     status: toClientCustomerStatus(row.status as CustomerStatus),
     email: row.email ?? "",
     mobile: row.mobile,
-    gst: row.gst_number ?? undefined,
+    gst: row.gstin ?? undefined,
     address: row.address,
     city: row.city,
     state: row.state,
-    pincode: row.pincode,
+    creditLimit: row.credit_limit,
     followUpDate: row.follow_up_date
       ? new Date(row.follow_up_date as string).toISOString().split("T")[0]
       : undefined,
@@ -108,7 +108,7 @@ export function mapProduct(row: Record<string, unknown>) {
   const minStock = Number(row.minimum_stock);
   return {
     id: row.id,
-    name: row.product_name,
+    name: row.name,
     sku: row.sku,
     category: row.category,
     description: row.description ?? undefined,
@@ -116,7 +116,6 @@ export function mapProduct(row: Record<string, unknown>) {
     currentStock,
     minStock,
     unit: row.unit,
-    warehouse: row.warehouse_location,
     status: computeStockStatus(currentStock, minStock),
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString(),
@@ -128,10 +127,10 @@ export function mapStockMovement(row: Record<string, unknown>) {
     id: row.id,
     productId: row.product_id,
     productName: row.product_name,
-    type: toClientMovementType(row.movement_type as MovementType),
-    quantity: row.quantity_changed,
-    reason: row.reason,
-    reference: row.reference ?? undefined,
+    type: toClientMovementType(row.type as MovementType),
+    quantity: row.quantity,
+    notes: row.notes,
+    referenceId: row.reference_id ?? undefined,
     createdBy: row.created_by,
     createdByName: row.created_by_name,
     createdAt: (row.created_at as Date).toISOString(),
@@ -176,8 +175,10 @@ export function mapFollowUp(row: Record<string, unknown>) {
   return {
     id: row.id,
     customerId: row.customer_id,
-    date: new Date(row.follow_up_date as string).toISOString().split("T")[0],
-    notes: row.note,
+    date: row.follow_up_date
+      ? new Date(row.follow_up_date as string).toISOString().split("T")[0]
+      : null,
+    notes: row.notes,
     createdBy: row.created_by,
     createdByName: row.created_by_name,
     createdAt: (row.created_at as Date).toISOString(),

@@ -1,23 +1,43 @@
-import dotenv from "dotenv";
-import { z } from "zod";
+import { z } from 'zod';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
-const schema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(5000),
-  DATABASE_URL: z.string().url("DATABASE_URL must be a PostgreSQL connection string"),
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
-  JWT_EXPIRES_IN: z.string().default("1d"),
-  CORS_ORIGIN: z.string().default("http://localhost:5173"),
-  BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
+const EnvSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  JWT_SECRET: z.string().min(1),
+  PORT: z.coerce.number().default(5000),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  JWT_EXPIRES_IN: z.string().default('7d'),
+  BCRYPT_ROUNDS: z.coerce.number().int().min(8).max(14).default(10),
+}).superRefine((val, ctx) => {
+  if (val.NODE_ENV === 'production' && val.JWT_SECRET.length < 32) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.too_small,
+      minimum: 32,
+      type: 'string',
+      inclusive: true,
+      message: 'JWT_SECRET must be at least 32 characters in production',
+    });
+  }
 });
 
-const result = schema.safeParse(process.env);
+let env: z.infer<typeof EnvSchema>;
 
-if (!result.success) {
-  const message = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
-  throw new Error(`Environment validation failed: ${message}`);
+try {
+  env = EnvSchema.parse(process.env);
+} catch (error) {
+  if (error instanceof z.ZodError) {
+    console.error('❌ Environment validation failed:');
+    error.errors.forEach((e) => {
+      console.error(`  - ${e.path.join('.')}: ${e.message}`);
+    });
+  } else {
+    console.error('❌ Environment validation failed:', error);
+  }
+  process.exit(1);
 }
 
-export const env = result.data;
+export { env };
+export type Env = z.infer<typeof EnvSchema>;
