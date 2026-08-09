@@ -322,7 +322,7 @@ async function insertFollowUps(client: PoolClient, customerIds: Map<string, stri
     if (!customerId) continue;
 
     const columns = ["customer_id", "follow_up_date", "created_by", "created_at"];
-    const values = [customerId, dateOnly(offset as number), userIds.SALES, daysFromNow((offset as number) - 1, 11)];
+    const values: unknown[] = [customerId, dateOnly(offset as number), userIds.SALES, daysFromNow((offset as number) - 1, 11)];
 
     if (availableColumns.has("notes")) {
       columns.push("notes");
