@@ -1,173 +1,197 @@
-import { useState } from 'react';
-import { motion, type Variants } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { Search, X, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
-import { PageHeader } from '@/components/layout/PageHeader';
-import { StatusBadge } from '@/components/data-display/StatusBadge';
-import { EmptyState } from '@/components/data-display/EmptyState';
-import { ErrorState } from '@/components/data-display/ErrorState';
+import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { Loader2, History, ArrowDownLeft, ArrowUpRight, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useInventory, useStockMovements } from '@/hooks/useStock';
+import { useGlobalInventoryMovements } from '@/hooks/useGlobalInventoryMovements';
+import { formatDateTime, formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
-import { formatDate, cn } from '@/lib/utils';
-import type { Product, StockMovement, StockStatus } from '@/types';
 
-const pageVariants: Variants = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
-};
+type MovementType = 'ALL' | 'IN' | 'OUT';
 
 export default function InventoryPage() {
-  const navigate = useNavigate();
+  const { movements, products, isLoading } = useGlobalInventoryMovements();
   const [search, setSearch] = useState('');
-  const [stockFilter, setStockFilter] = useState<StockStatus | 'all'>('all');
-  const debouncedSearch = useDebounce(search);
+  const [typeFilter, setTypeFilter] = useState<MovementType>('ALL');
+  const debouncedSearch = useDebounce(search, 400);
 
-  const { data, isLoading, isError, refetch } = useInventory({
-    search: debouncedSearch,
-    stockStatus: stockFilter === 'all' ? undefined : stockFilter,
-  });
-  const { data: movements, isLoading: loadingMovements } = useStockMovements();
+  // Compute Today Stats
+  const stats = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-  const products = data?.data || [];
+    const todayMovements = movements.filter((m) => {
+      const d = new Date(m.createdAt);
+      return d >= todayStart && d <= todayEnd;
+    });
 
-  if (isError) return <ErrorState title="Unable to load inventory" onRetry={() => refetch()} />;
+    const totalStockValue = products.reduce((sum, p) => sum + (p.currentStock * p.unitPrice), 0);
+
+    return {
+      totalStockValue,
+      totalMovements: todayMovements.length,
+      stockIn: todayMovements.filter((m) => m.type === 'IN').reduce((s, m) => s + m.quantity, 0),
+      stockOut: todayMovements.filter((m) => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0),
+    };
+  }, [movements, products]);
+
+  // Apply filters
+  const filteredMovements = useMemo(() => {
+    return movements.filter((m) => {
+      if (typeFilter !== 'ALL' && m.type !== typeFilter) return false;
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        return (
+          m.productName.toLowerCase().includes(q) ||
+          m.productSku.toLowerCase().includes(q) ||
+          (m.notes && m.notes.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [movements, typeFilter, debouncedSearch]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F0F4F0] p-6 lg:p-8 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#142814]" />
+      </div>
+    );
+  }
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate">
-      <PageHeader title="Inventory" description="Monitor stock levels and movement history." />
+    <div className="p-6 lg:p-8 bg-[#F0F4F0] min-h-screen">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-[#0A1F0A] tracking-tight font-space">
+          Inventory
+        </h1>
+        <p className="text-[#5A6B5A] mt-1 text-sm">
+          Track all stock movements across warehouses
+        </p>
+      </div>
 
-      <Tabs defaultValue="stock">
-        <TabsList>
-          <TabsTrigger value="stock">Current Stock</TabsTrigger>
-          <TabsTrigger value="movements">Movement History</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div className="bg-white rounded-xl border border-[#E2EFE2] p-5 shadow-sm">
+          <p className="text-xs text-[#5A6B5A] uppercase tracking-wider font-semibold mb-1">Total Stock Value</p>
+          <p className="font-mono text-2xl font-bold text-[#0A1F0A]">{formatCurrency(stats.totalStockValue)}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-[#E2EFE2] p-5 shadow-sm">
+          <p className="text-xs text-[#5A6B5A] uppercase tracking-wider font-semibold mb-1">Movements Today</p>
+          <p className="font-mono text-2xl font-bold text-[#0A1F0A]">{stats.totalMovements}</p>
+        </div>
+        <div className="bg-[#F7FEE7] rounded-xl border border-[#D9F99D] p-5 shadow-sm">
+          <p className="text-xs text-[#65A30D] uppercase tracking-wider font-semibold mb-1">Stock IN Today</p>
+          <p className="font-mono text-2xl font-bold text-[#16A34A]">{stats.stockIn}</p>
+        </div>
+        <div className="bg-[#FDF2F8] rounded-xl border border-[#FBCFE8] p-5 shadow-sm">
+          <p className="text-xs text-[#E11D48] uppercase tracking-wider font-semibold mb-1">Stock OUT Today</p>
+          <p className="font-mono text-2xl font-bold text-[#F43F5E]">{stats.stockOut}</p>
+        </div>
+      </div>
 
-        <TabsContent value="stock">
-          <Card className="p-4 mb-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" aria-hidden="true" />
-                <Input placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-                {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>}
-              </div>
-              <select
-                value={stockFilter}
-                onChange={(e) => setStockFilter(e.target.value as StockStatus | 'all')}
-                className="h-10 px-3 border border-border-default rounded-[var(--radius-md)] bg-bg-white text-sm text-text-primary"
-              >
-                <option value="all">All Status</option>
-                <option value="healthy">In Stock</option>
-                <option value="low">Low Stock</option>
-                <option value="out">Out of Stock</option>
-              </select>
-            </div>
-          </Card>
-
-          {isLoading ? (
-            <Card className="p-4"><div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div></Card>
-          ) : !products.length ? (
-            <EmptyState title="No inventory items found" description="Products will appear here once added." />
-          ) : (
-            <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border-subtle bg-bg-elevated/50">
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Product</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">SKU</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden lg:table-cell">Warehouse</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Current</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden sm:table-cell">Min</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((p: Product) => (
-                      <tr key={p.id} className="border-b border-border-subtle last:border-0 hover:bg-bg-elevated/30 transition-colors">
-                        <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-text-primary">{p.name}</p>
-                        </td>
-                        <td className="px-4 py-3 hidden md:table-cell">
-                          <span className="text-sm font-mono text-text-secondary">{p.sku}</span>
-                        </td>
-                        <td className="px-4 py-3 hidden lg:table-cell">
-                          <span className="text-sm text-text-secondary">{p.warehouse}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className={cn('text-sm font-mono tabular-nums font-semibold', p.status === 'out' ? 'text-danger' : p.status === 'low' ? 'text-warning' : 'text-text-primary')}>
-                            {p.currentStock}
-                          </span>
-                          <span className="text-xs text-text-muted ml-1">{p.unit}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right hidden sm:table-cell">
-                          <span className="text-sm font-mono tabular-nums text-text-muted">{p.minStock}</span>
-                        </td>
-                        <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                        <td className="px-4 py-3 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/products/${p.id}`)}>View</Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        <div className="relative flex-1 max-w-sm">
+          <Filter className="absolute left-3 top-2.5 h-4 w-4 text-[#8A9A8A]" />
+          <Input 
+            placeholder="Search products or SKU..." 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 bg-white"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-2.5 text-[#8A9A8A] hover:text-[#0A1F0A]">
+              <X className="h-4 w-4" />
+            </button>
           )}
-        </TabsContent>
+        </div>
+        <div className="flex gap-2">
+          {['ALL', 'IN', 'OUT'].map((type) => (
+            <Button
+              key={type}
+              onClick={() => setTypeFilter(type as MovementType)}
+              variant="outline"
+              className={`h-10 px-4 rounded-lg text-sm border-[#E2EFE2] ${typeFilter === type ? 'bg-[#142814] text-white' : 'bg-white hover:bg-[#E8F0E8]'}`}
+            >
+              {type === 'ALL' ? 'All Movements' : type}
+            </Button>
+          ))}
+        </div>
+      </div>
 
-        <TabsContent value="movements">
-          <Card>
-            <CardHeader><CardTitle>Recent Stock Movements</CardTitle></CardHeader>
-            <CardContent>
-              {loadingMovements ? (
-                <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-              ) : !movements?.length ? (
-                <EmptyState title="No stock movements" description="Stock adjustments will appear here." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border-subtle">
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Date</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Product</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Type</th>
-                        <th className="text-right px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Qty</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider hidden sm:table-cell">Reason</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">By</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movements.map((m: StockMovement) => (
-                        <tr key={m.id} className="border-b border-border-subtle last:border-0">
-                          <td className="px-3 py-2.5"><span className="text-sm font-mono text-text-primary tabular-nums">{formatDate(m.createdAt)}</span></td>
-                          <td className="px-3 py-2.5">
-                            <button onClick={() => navigate(`/products/${m.productId}`)} className="text-sm text-text-primary hover:underline">{m.productName}</button>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <span className={cn('inline-flex items-center gap-1 text-sm font-medium', m.type === 'IN' ? 'text-success' : 'text-warning')}>
-                              {m.type === 'IN' ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
-                              {m.type === 'IN' ? 'IN' : 'OUT'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right"><span className="text-sm font-mono tabular-nums font-medium">{m.quantity}</span></td>
-                          <td className="px-3 py-2.5 hidden sm:table-cell"><span className="text-sm text-text-secondary">{m.notes || '—'}</span></td>
-                          <td className="px-3 py-2.5 hidden md:table-cell"><span className="text-sm text-text-muted">{m.createdByName}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </motion.div>
+      <div className="bg-white rounded-xl border border-[#E2EFE2] shadow-sm overflow-hidden">
+        {filteredMovements.length === 0 ? (
+          <div className="py-16 text-center flex flex-col items-center justify-center">
+            <div className="w-16 h-16 bg-[#F0F4F0] rounded-full flex items-center justify-center mb-4">
+              <History className="w-8 h-8 text-[#8A9A8A]" />
+            </div>
+            <h3 className="text-lg font-semibold text-[#0A1F0A] mb-2 font-space">
+              No stock movements found
+            </h3>
+            <p className="text-sm text-[#5A6B5A] max-w-sm">
+              {(search || typeFilter !== 'ALL') ? 'No movements match your filters.' : 'Stock changes will appear here when inventory is updated.'}
+            </p>
+            {(search || typeFilter !== 'ALL') && (
+              <Button 
+                variant="outline" 
+                onClick={() => { setSearch(''); setTypeFilter('ALL'); }}
+                className="mt-6 border-[#E2EFE2]"
+              >
+                Clear Filters
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead className="bg-[#E8F0E8]">
+                <tr className="h-10 text-left text-[11px] uppercase tracking-widest text-[#8A9A8A] font-medium">
+                  <th className="px-4 whitespace-nowrap">Date</th>
+                  <th className="px-4">Product</th>
+                  <th className="px-4">SKU</th>
+                  <th className="px-4">Type</th>
+                  <th className="px-4 text-right">Qty</th>
+                  <th className="px-4">Reason</th>
+                  <th className="px-4">By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMovements.map((m) => (
+                  <tr key={m.id} className="h-12 border-b border-[#E2EFE2] last:border-0 hover:bg-[#E8F0E8]/50">
+                    <td className="px-4 font-mono text-xs text-[#8A9A8A] whitespace-nowrap">
+                      {formatDateTime(m.createdAt)}
+                    </td>
+                    <td className="px-4">
+                      <Link to={`/products/${m.productId}`} className="text-sm font-medium text-[#0A1F0A] hover:underline">
+                        {m.productName}
+                      </Link>
+                    </td>
+                    <td className="px-4 font-mono text-xs text-[#5A6B5A]">
+                      {m.productSku}
+                    </td>
+                    <td className="px-4">
+                      <span className={`inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${m.type === 'IN' ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FFF7ED] text-[#EA580C]'}`}>
+                        {m.type === 'IN' ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                        {m.type}
+                      </span>
+                    </td>
+                    <td className={`px-4 text-right font-mono text-sm font-medium ${m.type === 'IN' ? 'text-[#059669]' : 'text-[#EA580C]'}`}>
+                      {m.type === 'IN' ? '+' : '-'}{m.quantity}
+                    </td>
+                    <td className="px-4 text-sm text-[#5A6B5A] truncate max-w-[200px]">
+                      {m.notes || '-'}
+                    </td>
+                    <td className="px-4 text-sm text-[#0A1F0A]">
+                      {m.createdByName || '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

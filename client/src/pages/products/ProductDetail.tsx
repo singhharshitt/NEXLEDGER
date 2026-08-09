@@ -1,280 +1,260 @@
 import { useState } from 'react';
 import { motion, type Variants } from 'framer-motion';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Warehouse as WarehouseIcon, Tag, Hash, ArrowDownLeft, ArrowUpRight, Plus } from 'lucide-react';
-import { useProduct, useProductStockMovements } from '@/hooks/useProducts';
-import { useStockAdjust } from '@/hooks/useStock';
-import { StatusBadge } from '@/components/data-display/StatusBadge';
-import { EmptyState } from '@/components/data-display/EmptyState';
+import { useParams, Link } from 'react-router-dom';
+import { ChevronRight, Pencil } from 'lucide-react';
+
+import { useProduct, useProductStockMovements, useUpdateProduct } from '@/hooks/useProducts';
+import { useAuthStore } from '@/stores/auth.store';
+import { toast } from '@/hooks/useToast';
+import { formatCurrency, cn } from '@/lib/utils';
+import { getStockStatus } from '@/utils/product.utils';
+
 import { ErrorState } from '@/components/data-display/ErrorState';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { toast } from '@/hooks/useToast';
-import { useForm, useWatch } from 'react-hook-form';
-import { z } from 'zod/v4';
-import { zodResolver } from '@hookform/resolvers/zod';
-import type { StockMovement } from '@/types';
 
-const stockAdjustSchema = z.object({
-  type: z.enum(['IN', 'OUT']),
-  quantity: z.number().int().positive('Quantity must be positive'),
-  reason: z.string().min(1, 'Reason is required'),
-});
+import { OverviewTab } from '@/components/products/OverviewTab';
+import { MovementsTab } from '@/components/products/MovementsTab';
+import { AdjustStockCard } from '@/components/products/AdjustStockCard';
+import { StockSummaryCard } from '@/components/products/StockSummaryCard';
+import { ProductDrawer, type ProductFormValues } from '@/components/products/ProductDrawer';
 
 const pageVariants: Variants = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
 };
 
+function MetadataField({ label, value, mono = false, highlight = false }: { label: string, value: string, mono?: boolean, highlight?: boolean }) {
+  return (
+    <div className="space-y-1">
+      <span className="text-[11px] uppercase tracking-widest text-[#8A9A8A] font-medium block">
+        {label}
+      </span>
+      <span className={cn(
+        "text-sm",
+        mono ? "font-mono" : "",
+        highlight ? "text-[#F43F5E] font-medium" : "text-[#0A1F0A]"
+      )}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  
   const { data: product, isLoading, isError, refetch } = useProduct(id!);
   const { data: movements, isLoading: loadingMovements } = useProductStockMovements(id!);
-  const stockAdjust = useStockAdjust();
-  const [showAdjust, setShowAdjust] = useState(false);
+  const updateProduct = useUpdateProduct();
+  
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
 
-  const form = useForm<z.infer<typeof stockAdjustSchema>>({
-    resolver: zodResolver(stockAdjustSchema),
-    defaultValues: { type: 'IN' },
-  });
-  const selectedType = useWatch({ control: form.control, name: 'type' });
+  const canManageProducts = user?.role === 'ADMIN';
+  const canAdjustStock = user?.role === 'ADMIN' || user?.role === 'WAREHOUSE';
 
-  const handleAdjust = async (data: z.infer<typeof stockAdjustSchema>) => {
+  const handleEditSubmit = async (formData: ProductFormValues) => {
     try {
-      await stockAdjust.mutateAsync({ productId: id!, ...data });
-      setShowAdjust(false);
-      form.reset();
-      toast({ title: 'Stock adjusted', description: `${data.type === 'IN' ? 'Added' : 'Removed'} ${data.quantity} units.`, type: 'success' });
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      toast({ title: 'Error', description: axiosErr?.response?.data?.message || 'Failed to adjust stock.', type: 'error' });
+      await updateProduct.mutateAsync({ id: id!, input: formData });
+      toast({ title: 'Product updated', description: `${formData.name} has been updated.`, type: 'success' });
+      setEditDrawerOpen(false);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update product details.', type: 'error' });
     }
   };
 
-  if (isLoading) {
+  if (isError) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2"><Skeleton className="h-48" /></div>
-          <Skeleton className="h-48" />
+      <div className="p-6 lg:p-8 bg-[#F0F4F0] min-h-screen">
+        <div className="max-w-[1400px] mx-auto">
+          <ErrorState title="Unable to load product" message="Something went wrong while loading product information." onRetry={() => refetch()} />
         </div>
       </div>
     );
   }
 
-  if (isError || !product) return <ErrorState title="Unable to load product" onRetry={() => refetch()} />;
-
-  const stockPercent = product.minStock > 0 ? Math.min(100, (product.currentStock / (product.minStock * 3)) * 100) : 100;
+  if (!product && !isLoading) {
+    return (
+      <div className="p-6 lg:p-8 bg-[#F0F4F0] min-h-screen">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="bg-white rounded-xl border border-[#E2EFE2] shadow-sm p-12 text-center">
+            <h2 className="text-xl font-semibold text-[#0A1F0A] mb-2">Product not found</h2>
+            <p className="text-[#5A6B5A] mb-6">The product you're looking for doesn't exist or is no longer available.</p>
+            <Link to="/products">
+              <Button className="bg-[#142814] text-white hover:bg-[#1a2e1a]">Back to Products</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate">
-      {/* Header */}
-      <div className="flex items-start gap-4 mb-6">
-        <Button variant="ghost" size="icon-sm" onClick={() => navigate('/products')} aria-label="Back to products">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-h2 text-text-primary">{product.name}</h1>
-            <StatusBadge status={product.status} />
-          </div>
-          <p className="text-sm font-mono text-text-muted mt-1">{product.sku}</p>
-        </div>
-        <Button onClick={() => setShowAdjust(true)}>
-          <Plus className="h-4 w-4" aria-hidden="true" /> Adjust Stock
-        </Button>
-      </div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="p-6 lg:p-8 bg-[#F0F4F0] min-h-screen">
+      <div className="max-w-[1400px] mx-auto">
+        
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-sm mb-6">
+          <Link to="/products" className="text-[#8A9A8A] hover:text-[#0A1F0A] transition-colors font-medium">
+            Products
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-[#D4E4D4]" />
+          <span className="text-[#0A1F0A] font-medium truncate max-w-[300px]">
+            {isLoading ? <Skeleton className="h-4 w-32 inline-block bg-[#D4E4D4]" /> : product?.name}
+          </span>
+        </nav>
 
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="movements">Stock Movements</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader><CardTitle>Product Information</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                    {[
-                      { icon: Tag, label: 'Category', value: product.category },
-                      { icon: Package, label: 'Unit', value: product.unit },
-                      { icon: WarehouseIcon, label: 'Warehouse', value: product.warehouse },
-                      { icon: Hash, label: 'SKU', value: product.sku, mono: true },
-                    ].map((item) => (
-                      <div key={item.label}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <item.icon className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
-                          <span className="text-xs text-text-muted uppercase tracking-wider">{item.label}</span>
-                        </div>
-                        <p className={cn('text-sm text-text-primary font-medium', item.mono && 'font-mono')}>{item.value}</p>
+        {isLoading ? (
+          <div className="animate-pulse space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-6">
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl border border-[#E2EFE2] p-6 space-y-4">
+                  <div className="flex justify-between">
+                    <div className="space-y-2">
+                      <div className="h-7 bg-[#E8F0E8] rounded w-48" />
+                      <div className="h-3 bg-[#E8F0E8] rounded w-24" />
+                    </div>
+                    <div className="h-9 bg-[#E8F0E8] rounded w-20" />
+                  </div>
+                  <div className="h-px bg-[#E2EFE2]" />
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {Array(6).fill(null).map((_, i) => (
+                      <div key={i} className="space-y-2">
+                        <div className="h-3 bg-[#E8F0E8] rounded w-16" />
+                        <div className="h-4 bg-[#E8F0E8] rounded w-full" />
                       </div>
                     ))}
-                    <div>
-                      <p className="text-xs text-text-muted uppercase tracking-wider mb-1">Unit Price</p>
-                      <p className="text-sm font-mono tabular-nums text-text-primary font-semibold">{formatCurrency(product.unitPrice)}</p>
-                    </div>
                   </div>
-                  {product.description && (
-                    <div className="mt-6 pt-4 border-t border-border-subtle">
-                      <p className="text-xs text-text-muted uppercase tracking-wider mb-1">Description</p>
-                      <p className="text-sm text-text-secondary">{product.description}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div>
-              <Card>
-                <CardHeader><CardTitle>Stock Level</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="text-center mb-4">
-                    <p className="text-3xl font-mono font-bold tabular-nums text-text-primary">{product.currentStock}</p>
-                    <p className="text-sm text-text-muted">{product.unit}</p>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="h-2 bg-bg-elevated rounded-full overflow-hidden mb-3">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-500',
-                        product.status === 'healthy' ? 'bg-success' : product.status === 'low' ? 'bg-warning' : 'bg-danger'
-                      )}
-                      style={{ width: `${stockPercent}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-text-muted">
-                    <span>Min: {product.minStock}</span>
-                    <span>Current: {product.currentStock}</span>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-border-subtle space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-text-muted">Created</span>
-                      <span className="font-mono text-text-primary">{formatDate(product.createdAt)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-text-muted">Updated</span>
-                      <span className="font-mono text-text-primary">{formatDate(product.updatedAt)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="movements">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Stock Movements</CardTitle>
-              <Button size="sm" onClick={() => setShowAdjust(true)}>
-                <Plus className="h-4 w-4" aria-hidden="true" /> Add Stock
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {loadingMovements ? (
-                <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-              ) : !movements?.length ? (
-                <EmptyState title="No stock movements" description="Stock adjustments will appear here." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border-subtle">
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Date</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Type</th>
-                        <th className="text-right px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Qty</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider hidden sm:table-cell">Reason</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">By</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movements.map((m: StockMovement) => (
-                        <tr key={m.id} className="border-b border-border-subtle last:border-0">
-                          <td className="px-3 py-2.5">
-                            <span className="text-sm font-mono text-text-primary tabular-nums">{formatDate(m.createdAt)}</span>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <span className={cn('inline-flex items-center gap-1 text-sm font-medium', m.type === 'IN' ? 'text-success' : 'text-warning')}>
-                              {m.type === 'IN' ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
-                              {m.type === 'IN' ? 'IN' : 'OUT'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right">
-                            <span className="text-sm font-mono tabular-nums font-medium text-text-primary">{m.quantity}</span>
-                          </td>
-                          <td className="px-3 py-2.5 hidden sm:table-cell">
-                            <span className="text-sm text-text-secondary">{m.notes || '—'}</span>
-                          </td>
-                          <td className="px-3 py-2.5 hidden md:table-cell">
-                            <span className="text-sm text-text-muted">{m.createdByName}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Stock Adjustment Dialog */}
-      <Dialog open={showAdjust} onOpenChange={setShowAdjust}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Adjust Stock</DialogTitle>
-            <DialogDescription>
-              {product.name} — Current stock: <span className="font-mono font-semibold">{product.currentStock} {product.unit}</span>
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={form.handleSubmit(handleAdjust)} className="space-y-4 mt-4">
-            <div className="space-y-1.5">
-              <Label>Type *</Label>
-              <div className="flex gap-2">
-                {(['IN', 'OUT'] as const).map((t) => (
-                  <label key={t} className={cn(
-                    'flex-1 flex items-center justify-center gap-2 p-3 rounded-[var(--radius-md)] border cursor-pointer transition-colors',
-                    selectedType === t
-                      ? t === 'IN' ? 'border-success bg-success-bg text-success' : 'border-warning bg-warning-bg text-amber-700'
-                      : 'border-border-default hover:bg-bg-elevated text-text-secondary'
-                  )}>
-                    <input type="radio" value={t} {...form.register('type')} className="sr-only" />
-                    {t === 'IN' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                    <span className="text-sm font-medium">Stock {t}</span>
-                  </label>
-                ))}
+                <div className="h-10 bg-[#E8F0E8] rounded-lg w-48" />
+                <div className="bg-white rounded-xl border border-[#E2EFE2] p-6 space-y-3">
+                  {Array(5).fill(null).map((_, i) => <div key={i} className="h-12 bg-[#E8F0E8] rounded w-full" />)}
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl border border-[#E2EFE2] p-5 space-y-3">
+                  <div className="h-5 bg-[#E8F0E8] rounded w-24" />
+                  <div className="h-10 bg-[#E8F0E8] rounded w-full" />
+                  <div className="h-10 bg-[#E8F0E8] rounded w-full" />
+                  <div className="h-20 bg-[#E8F0E8] rounded w-full" />
+                  <div className="h-10 bg-[#E8F0E8] rounded w-full" />
+                </div>
+                <div className="bg-white rounded-xl border border-[#E2EFE2] p-5 space-y-3">
+                  <div className="h-5 bg-[#E8F0E8] rounded w-20" />
+                  <div className="h-4 bg-[#E8F0E8] rounded w-full" />
+                  <div className="h-4 bg-[#E8F0E8] rounded w-full" />
+                  <div className="h-4 bg-[#E8F0E8] rounded w-full" />
+                </div>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sa-qty">Quantity *</Label>
-              <Input id="sa-qty" type="number" {...form.register('quantity', { valueAsNumber: true })} className="font-mono" placeholder="0" />
-              {form.formState.errors.quantity && <p className="text-xs text-danger">{form.formState.errors.quantity.message}</p>}
+          </div>
+        ) : (
+          product && (
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-6">
+              
+              {/* Left Column */}
+              <div className="space-y-6">
+                
+                {/* Product Snapshot Card */}
+                <div className="bg-white rounded-xl border border-[#E2EFE2] shadow-sm overflow-hidden">
+                  <div className="p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <h1 className="text-2xl font-semibold text-[#0A1F0A] tracking-tight truncate" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                          {product.name}
+                        </h1>
+                        <p className="font-mono text-xs text-[#8A9A8A] mt-1">{product.sku}</p>
+                      </div>
+                      {canManageProducts && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setEditDrawerOpen(true)}
+                          className="h-9 px-3 border-[#E2EFE2] rounded-lg text-sm hover:bg-[#E8F0E8] flex-shrink-0"
+                        >
+                          <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="h-px bg-[#E2EFE2]" />
+                  
+                  <div className="p-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5">
+                      <MetadataField label="SKU" value={product.sku} mono />
+                      <MetadataField label="Category" value={product.category || '—'} />
+                      <MetadataField label="Unit Price" value={formatCurrency(product.unitPrice)} mono />
+                      <MetadataField 
+                        label="Current Stock" 
+                        value={`${product.currentStock} ${product.unit}`} 
+                        mono 
+                        highlight={getStockStatus(product.currentStock, product.minStock).status !== 'HEALTHY'}
+                      />
+                      <MetadataField label="Min Stock" value={product.minStock.toString()} mono />
+                      <MetadataField label="Warehouse" value={product.warehouse || '—'} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <Tabs defaultValue="overview">
+                  <TabsList className="bg-[#E8F0E8] rounded-lg p-1 h-10">
+                    <TabsTrigger 
+                      value="overview" 
+                      className="rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-[#0A1F0A] text-[#5A6B5A]"
+                    >
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="movements" 
+                      className="rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-[#0A1F0A] text-[#5A6B5A]"
+                    >
+                      Stock Movements
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="overview" className="mt-4 outline-none">
+                    <OverviewTab product={product} />
+                  </TabsContent>
+                  
+                  <TabsContent value="movements" className="mt-4 outline-none">
+                    {loadingMovements ? (
+                      <div className="bg-white rounded-xl border border-[#E2EFE2] p-6 space-y-3 animate-pulse">
+                        {Array(5).fill(null).map((_, i) => <div key={i} className="h-12 bg-[#E8F0E8] rounded w-full" />)}
+                      </div>
+                    ) : (
+                      <MovementsTab movements={movements || []} />
+                    )}
+                  </TabsContent>
+                </Tabs>
+
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-4">
+                <AdjustStockCard product={product} canAdjustStock={canAdjustStock} />
+                <StockSummaryCard movements={movements} isLoading={loadingMovements} />
+              </div>
+
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sa-reason">Reason *</Label>
-              <Textarea id="sa-reason" {...form.register('reason')} placeholder="e.g., Purchase order received" />
-              {form.formState.errors.reason && <p className="text-xs text-danger">{form.formState.errors.reason.message}</p>}
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAdjust(false)}>Cancel</Button>
-              <Button type="submit" disabled={stockAdjust.isPending}>{stockAdjust.isPending ? 'Adjusting...' : 'Adjust Stock'}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          )
+        )}
+      </div>
+
+      {/* Edit Drawer */}
+      {canManageProducts && product && (
+        <ProductDrawer
+          isOpen={editDrawerOpen}
+          onClose={() => setEditDrawerOpen(false)}
+          product={product}
+          onSubmit={handleEditSubmit}
+          isSubmitting={updateProduct.isPending}
+        />
+      )}
     </motion.div>
   );
 }

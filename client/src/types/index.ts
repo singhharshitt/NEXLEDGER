@@ -243,6 +243,8 @@ export interface ProductFilters {
   search?: string;
   category?: string;
   stockStatus?: StockStatus | 'all';
+  page?: number;
+  limit?: number;
 }
 
 export interface ChallanFilters {

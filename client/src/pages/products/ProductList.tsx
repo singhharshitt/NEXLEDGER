@@ -1,39 +1,31 @@
+import { useState, useCallback } from 'react';
 import { motion, type Variants } from 'framer-motion';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Search, X, Eye, Pencil } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Package, SearchX } from 'lucide-react';
+
 import { PageHeader } from '@/components/layout/PageHeader';
-import { StatusBadge } from '@/components/data-display/StatusBadge';
 import { EmptyState } from '@/components/data-display/EmptyState';
 import { ErrorState } from '@/components/data-display/ErrorState';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { useProducts, useCreateProduct, useProductCategories } from '@/hooks/useProducts';
+
+import { ProductFilters } from '@/components/products/ProductFilters';
+import { ProductTable } from '@/components/products/ProductTable';
+import { ProductCard } from '@/components/products/ProductCard';
+import { ProductDrawer, type ProductFormValues } from '@/components/products/ProductDrawer';
+import { StockHistoryModal } from '@/components/products/StockHistoryModal';
+import { ProductSkeleton } from '@/components/products/ProductSkeleton';
+
+import { 
+  useProducts, 
+  useProductCategories, 
+  useCreateProduct, 
+  useUpdateProduct 
+} from '@/hooks/useProducts';
 import { useDebounce } from '@/hooks/useDebounce';
 import { toast } from '@/hooks/useToast';
-import { formatCurrency } from '@/lib/utils';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod/v4';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useAuthStore } from '@/stores/auth.store';
+
 import type { Product, StockStatus } from '@/types';
-
-const productSchema = z.object({
-  name: z.string().min(2, 'Name is required'),
-  sku: z.string().min(2, 'SKU is required'),
-  category: z.string().min(1, 'Category is required'),
-  description: z.string().optional(),
-  unitPrice: z.number().positive('Price must be positive'),
-  minStock: z.number().int().nonnegative('Min stock must be 0 or more'),
-  unit: z.string().min(1, 'Unit is required'),
-  warehouse: z.string().min(1, 'Warehouse is required'),
-});
-
-type ProductFormData = z.infer<typeof productSchema>;
 
 const pageVariants: Variants = {
   initial: { opacity: 0, y: 12 },
@@ -42,201 +34,250 @@ const pageVariants: Variants = {
 
 export default function ProductList() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [stockFilter, setStockFilter] = useState<StockStatus | 'all'>('all');
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const { user } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // URL Params
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const search = searchParams.get('search') || '';
+  const category = searchParams.get('category') || '';
+  const stockStatus = searchParams.get('stockStatus') || '';
 
-  const debouncedSearch = useDebounce(search);
+  // Local state for debounced search
+  const [searchInput, setSearchInput] = useState(search);
+  const debouncedSearch = useDebounce(searchInput, 400);
+
+  // Sync debounced search to URL
+  useCallback(() => {
+    setSearchParams(prev => {
+      if (debouncedSearch) prev.set('search', debouncedSearch);
+      else prev.delete('search');
+      if (debouncedSearch !== search) {
+        prev.set('page', '1');
+      }
+      return prev;
+    });
+  }, [debouncedSearch, search, setSearchParams])();
+
+  // Modals state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState<{ id: string, name: string } | null>(null);
+
+  // Queries & Mutations
   const { data, isLoading, isError, refetch } = useProducts({
     search: debouncedSearch,
-    category: categoryFilter === 'all' ? undefined : categoryFilter,
-    stockStatus: stockFilter,
+    category: category || undefined,
+    stockStatus: (stockStatus.toLowerCase() as StockStatus) || undefined,
+    page,
+    limit: 10,
   });
-  const { data: categories } = useProductCategories();
+  
+  const { data: categoriesData } = useProductCategories();
   const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
 
+  // Derived state
   const products = data?.data || [];
+  const categories = categoriesData || [];
+  const totalItems = data?.total || 0;
+  const totalPages = data?.totalPages || 1;
+  
+  const canManageProducts = user?.role === 'ADMIN';
 
-  const form = useForm<ProductFormData>({
-    resolver: zodResolver(productSchema),
-    defaultValues: { unit: 'Piece', warehouse: 'Warehouse A' },
-  });
+  // Handlers
+  const handleFilterChange = (key: string, value: string) => {
+    setSearchParams(prev => {
+      if (value) prev.set(key, value);
+      else prev.delete(key);
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
-  const handleCreate = async (formData: ProductFormData) => {
+  const clearFilters = () => {
+    setSearchInput('');
+    setSearchParams(prev => {
+      prev.delete('search');
+      prev.delete('category');
+      prev.delete('stockStatus');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
+
+  const setPage = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setSearchParams(prev => {
+      prev.set('page', String(newPage));
+      return prev;
+    });
+  };
+
+  const handleCreateOrUpdate = async (formData: ProductFormValues) => {
     try {
-      await createProduct.mutateAsync(formData);
-      setShowCreateDialog(false);
-      form.reset();
-      toast({ title: 'Product created', description: `${formData.name} has been added.`, type: 'success' });
+      if (editingProduct) {
+        await updateProduct.mutateAsync({ id: editingProduct.id, input: formData });
+        toast({ title: 'Product updated', description: `${formData.name} has been updated successfully.`, type: 'success' });
+      } else {
+        await createProduct.mutateAsync(formData);
+        toast({ title: 'Product created', description: `${formData.name} has been added successfully.`, type: 'success' });
+      }
+      setIsDrawerOpen(false);
     } catch {
-      toast({ title: 'Error', description: 'Failed to create product.', type: 'error' });
+      toast({ title: 'Error', description: `Failed to ${editingProduct ? 'update' : 'create'} product.`, type: 'error' });
     }
   };
 
-  if (isError) return <ErrorState title="Unable to load products" onRetry={() => refetch()} />;
+  const openEdit = (product: Product) => {
+    setEditingProduct(product);
+    setIsDrawerOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditingProduct(null);
+    setIsDrawerOpen(true);
+  };
+
+  const openHistory = (id: string, name: string) => {
+    setHistoryProduct({ id, name });
+    setIsHistoryOpen(true);
+  };
+
+  // Add Product Button
+  const ActionButton = canManageProducts ? (
+    <Button 
+      onClick={openCreate}
+      className="bg-[#142814] text-white h-10 px-4 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-[#1a2e1a] transition-colors"
+    >
+      <Plus className="w-4 h-4" />
+      Add Product
+    </Button>
+  ) : undefined;
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate">
-      <PageHeader
-        title="Products"
-        description="Manage your product catalog and inventory."
-        action={<Button onClick={() => setShowCreateDialog(true)}><Plus className="h-4 w-4" aria-hidden="true" /> Add Product</Button>}
-      />
-
-      {/* Filters */}
-      <Card className="p-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" aria-hidden="true" />
-            <Input placeholder="Search by name or SKU..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-            {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>}
-          </div>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="h-10 px-3 border border-border-default rounded-[var(--radius-md)] bg-bg-white text-sm text-text-primary"
-          >
-            <option value="all">All Categories</option>
-            {categories?.map((c: string) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select
-            value={stockFilter}
-            onChange={(e) => setStockFilter(e.target.value as StockStatus | 'all')}
-            className="h-10 px-3 border border-border-default rounded-[var(--radius-md)] bg-bg-white text-sm text-text-primary"
-          >
-            <option value="all">All Stock</option>
-            <option value="healthy">In Stock</option>
-            <option value="low">Low Stock</option>
-            <option value="out">Out of Stock</option>
-          </select>
-        </div>
-      </Card>
-
-      {/* Table */}
-      {isLoading ? (
-        <Card className="p-4"><div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div></Card>
-      ) : !products.length ? (
-        <EmptyState
-          title="No products found"
-          description={search || categoryFilter !== 'all' || stockFilter !== 'all'
-            ? 'Try adjusting your search or filters.'
-            : 'Add your first product to start managing inventory.'}
-          action={!search && categoryFilter === 'all' && stockFilter === 'all' ? { label: 'Add Product', onClick: () => setShowCreateDialog(true) } : undefined}
+    <motion.div 
+      variants={pageVariants} 
+      initial="initial" 
+      animate="animate"
+      className="p-6 lg:p-8 bg-[#F0F4F0] min-h-screen"
+    >
+      <div className="max-w-[1400px] mx-auto">
+        <PageHeader
+          title="Products"
+          description="Manage your inventory catalog."
+          action={ActionButton}
         />
-      ) : (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border-subtle bg-bg-elevated/50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Product</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">SKU</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden lg:table-cell">Category</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Price</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden sm:table-cell">Stock</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p: Product) => (
-                  <tr key={p.id} className="border-b border-border-subtle last:border-0 hover:bg-bg-elevated/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-text-primary">{p.name}</p>
-                      <p className="text-xs font-mono text-text-muted md:hidden">{p.sku}</p>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-sm font-mono text-text-secondary">{p.sku}</span>
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className="text-sm text-text-secondary">{p.category}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-sm font-mono tabular-nums text-text-primary">{formatCurrency(p.unitPrice)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right hidden sm:table-cell">
-                      <span className="text-sm font-mono tabular-nums text-text-primary">{p.currentStock}</span>
-                      <span className="text-xs text-text-muted ml-1">{p.unit}</span>
-                    </td>
-                    <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon-sm" onClick={() => navigate(`/products/${p.id}`)} aria-label="View product"><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon-sm" onClick={() => navigate(`/products/${p.id}`)} aria-label="Edit product"><Pencil className="h-4 w-4" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
 
-      {/* Create Product Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Product</DialogTitle>
-            <DialogDescription>Add a new product to the catalog.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4 mt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="p-name">Product Name *</Label>
-                <Input id="p-name" {...form.register('name')} placeholder="Product name" />
-                {form.formState.errors.name && <p className="text-xs text-danger">{form.formState.errors.name.message}</p>}
+        <div className="mt-6 space-y-4">
+          <ProductFilters 
+            searchInput={searchInput}
+            setSearchInput={setSearchInput}
+            category={category}
+            stockStatus={stockStatus}
+            handleFilterChange={handleFilterChange}
+            clearFilters={clearFilters}
+            categories={categories}
+          />
+
+          {isLoading ? (
+            <ProductSkeleton />
+          ) : isError ? (
+            <ErrorState title="Unable to load products" onRetry={() => refetch()} />
+          ) : products.length === 0 ? (
+            (debouncedSearch || category || stockStatus) ? (
+              <EmptyState 
+                icon={<SearchX className="w-12 h-12 text-[#8A9A8A]" />}
+                title="No matching products"
+                description="Try adjusting your search or filters."
+                action={{ label: 'Clear filters', onClick: clearFilters }}
+              />
+            ) : (
+              <EmptyState 
+                icon={<Package className="w-12 h-12 text-[#8A9A8A]" />}
+                title="No products yet"
+                description="Add your first product to start tracking inventory."
+                action={canManageProducts ? { label: 'Add Product', onClick: openCreate } : undefined}
+              />
+            )
+          ) : (
+            <>
+              {/* Desktop View */}
+              <div className="hidden md:block">
+                <ProductTable 
+                  products={products}
+                  canManageProducts={canManageProducts}
+                  onView={(id) => navigate(`/products/${id}`)}
+                  onEdit={openEdit}
+                  onHistory={openHistory}
+                />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-sku">SKU *</Label>
-                <Input id="p-sku" {...form.register('sku')} placeholder="CHEM-SOL-001" className="font-mono" />
-                {form.formState.errors.sku && <p className="text-xs text-danger">{form.formState.errors.sku.message}</p>}
+
+              {/* Mobile View */}
+              <div className="md:hidden space-y-3">
+                {products.map(p => (
+                  <ProductCard 
+                    key={p.id}
+                    product={p}
+                    canManageProducts={canManageProducts}
+                    onView={(id) => navigate(`/products/${id}`)}
+                    onEdit={openEdit}
+                    onHistory={openHistory}
+                  />
+                ))}
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-category">Category *</Label>
-                <Input id="p-category" {...form.register('category')} placeholder="e.g., Chemicals" />
-                {form.formState.errors.category && <p className="text-xs text-danger">{form.formState.errors.category.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-price">Unit Price (₹) *</Label>
-                <Input id="p-price" type="number" step="0.01" {...form.register('unitPrice', { valueAsNumber: true })} className="font-mono" />
-                {form.formState.errors.unitPrice && <p className="text-xs text-danger">{form.formState.errors.unitPrice.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-minstock">Minimum Stock *</Label>
-                <Input id="p-minstock" type="number" {...form.register('minStock', { valueAsNumber: true })} className="font-mono" />
-                {form.formState.errors.minStock && <p className="text-xs text-danger">{form.formState.errors.minStock.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-unit">Unit *</Label>
-                <select id="p-unit" {...form.register('unit')} className="h-10 w-full px-3 border border-border-default rounded-[var(--radius-md)] bg-bg-white text-sm">
-                  <option value="Piece">Piece</option>
-                  <option value="Kg">Kg</option>
-                  <option value="Litre">Litre</option>
-                  <option value="Box">Box</option>
-                  <option value="Metre">Metre</option>
-                </select>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="p-warehouse">Warehouse *</Label>
-                <select id="p-warehouse" {...form.register('warehouse')} className="h-10 w-full px-3 border border-border-default rounded-[var(--radius-md)] bg-bg-white text-sm">
-                  <option value="Warehouse A">Warehouse A</option>
-                  <option value="Warehouse B">Warehouse B</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="p-desc">Description</Label>
-              <Textarea id="p-desc" {...form.register('description')} placeholder="Optional description..." />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={createProduct.isPending}>{createProduct.isPending ? 'Creating...' : 'Create Product'}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#E2EFE2]">
+                  <p className="text-sm text-[#5A6B5A]">
+                    Showing <span className="font-medium text-[#0A1F0A]">{(page - 1) * 10 + 1}</span> to <span className="font-medium text-[#0A1F0A]">{Math.min(page * 10, totalItems)}</span> of <span className="font-medium text-[#0A1F0A]">{totalItems}</span> products
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(page - 1)}
+                      disabled={page === 1}
+                      className="border-[#E2EFE2] text-[#0A1F0A] hover:bg-[#E8F0E8]"
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(page + 1)}
+                      disabled={page === totalPages}
+                      className="border-[#E2EFE2] text-[#0A1F0A] hover:bg-[#E8F0E8]"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <ProductDrawer 
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        product={editingProduct}
+        onSubmit={handleCreateOrUpdate}
+        isSubmitting={createProduct.isPending || updateProduct.isPending}
+      />
+      
+      {isHistoryOpen && historyProduct && (
+        <StockHistoryModal 
+          isOpen={isHistoryOpen}
+          onClose={() => setIsHistoryOpen(false)}
+          productId={historyProduct.id}
+          productName={historyProduct.name}
+        />
+      )}
     </motion.div>
   );
 }

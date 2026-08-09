@@ -1,266 +1,327 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion, type Variants } from 'framer-motion';
-import { ArrowLeft, Building2, CheckCircle2, XCircle, Clock, FileText } from 'lucide-react';
-import { useChallan, useConfirmChallan, useCancelChallan } from '@/hooks/useChallans';
-import { StatusBadge } from '@/components/data-display/StatusBadge';
-import { ErrorState } from '@/components/data-display/ErrorState';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { formatCurrency, formatDate, formatDateTime, cn } from '@/lib/utils';
-import { toast } from '@/hooks/useToast';
 import { useState } from 'react';
-import type { ChallanItem } from '@/types';
-
-const pageVariants: Variants = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
-};
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Loader2, ArrowLeft, Printer, Check, X, Building2, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useChallan, useConfirmChallan, useCancelChallan } from '@/hooks/useChallans';
+import { useProducts } from '@/hooks/useProducts';
+import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils';
+import { ErrorState } from '@/components/data-display/ErrorState';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useAuthStore } from '@/stores/auth.store';
 
 export default function ChallanDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: challan, isLoading, isError, refetch } = useChallan(id!);
-  const confirmChallan = useConfirmChallan();
-  const cancelChallan = useCancelChallan();
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [showCancel, setShowCancel] = useState(false);
+  const { user } = useAuthStore();
+  
+  const { data: challan, isLoading, error, refetch } = useChallan(id as string);
+  const { data: productsData } = useProducts({ limit: 1000 }); // To check if current price differs
+  
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
-  const handleConfirm = async () => {
-    try {
-      await confirmChallan.mutateAsync(id!);
-      setShowConfirm(false);
-      toast({ title: 'Challan confirmed', description: 'Inventory has been updated.', type: 'success' });
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      toast({ title: 'Error', description: axiosErr?.response?.data?.message || 'Failed to confirm challan.', type: 'error' });
-    }
+  const confirmMutation = useConfirmChallan();
+  const cancelMutation = useCancelChallan();
+
+  const handleConfirm = () => {
+    confirmMutation.mutate(id as string, {
+      onSuccess: () => setConfirmOpen(false)
+    });
   };
 
-  const handleCancel = async () => {
-    try {
-      await cancelChallan.mutateAsync(id!);
-      setShowCancel(false);
-      toast({ title: 'Challan cancelled', type: 'success' });
-    } catch {
-      toast({ title: 'Error', description: 'Failed to cancel challan.', type: 'error' });
-    }
+  const handleCancel = () => {
+    cancelMutation.mutate(id as string, {
+      onSuccess: () => setCancelOpen(false)
+    });
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4"><Skeleton className="h-24" /><Skeleton className="h-48" /></div>
-          <div className="space-y-4"><Skeleton className="h-40" /><Skeleton className="h-32" /></div>
-        </div>
+      <div className="min-h-screen bg-[#F0F4F0] p-6 lg:p-8 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#142814]" />
       </div>
     );
   }
 
-  if (isError || !challan) return <ErrorState title="Unable to load challan" onRetry={() => refetch()} />;
+  if (error || !challan) {
+    return (
+      <div className="p-6 lg:p-8 bg-[#F0F4F0] min-h-screen">
+        <ErrorState title="Unable to load challan" message="Something went wrong while fetching challan data." onRetry={() => refetch()} />
+      </div>
+    );
+  }
 
-  const timeline = [
-    { label: 'Created', date: challan.createdAt, icon: FileText, color: 'text-text-muted' },
-    ...(challan.confirmedAt ? [{ label: 'Confirmed', date: challan.confirmedAt, icon: CheckCircle2, color: 'text-success' }] : []),
-    ...(challan.cancelledAt ? [{ label: 'Cancelled', date: challan.cancelledAt, icon: XCircle, color: 'text-danger' }] : []),
-  ];
+  const products = productsData?.data || [];
+  const isDraft = challan.status === 'DRAFT';
+  const canEdit = isDraft && (user?.role === 'ADMIN' || user?.role === 'SALES');
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate">
-      {/* Header */}
-      <div className="flex items-start gap-4 mb-6">
-        <Button variant="ghost" size="icon-sm" onClick={() => navigate('/challans')} aria-label="Back to challans">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-h2 font-mono text-text-primary">{challan.challanNumber}</h1>
-            <StatusBadge status={challan.status} />
-          </div>
-          <p className="text-body-sm text-text-muted mt-1">Created by {challan.createdByName} · {formatDate(challan.createdAt)}</p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          {challan.status === 'DRAFT' && (
-            <>
-              <Button variant="outline" onClick={() => setShowCancel(true)}>Cancel</Button>
-              <Button onClick={() => setShowConfirm(true)}>
-                <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Confirm
+    <div className="min-h-screen bg-[#F0F4F0] pb-24">
+      {/* Top Nav / Breadcrumb (Hidden on Print) */}
+      <div className="bg-white border-b border-[#E2EFE2] sticky top-0 z-40 print:hidden">
+        <div className="p-4 lg:px-8 max-w-6xl mx-auto flex items-center justify-between">
+          <nav className="flex items-center gap-2 text-sm">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/challans')} className="text-[#5A6B5A] -ml-2">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <Link to="/challans" className="text-[#8A9A8A] hover:text-[#0A1F0A] transition-colors">
+              Challans
+            </Link>
+            <span className="text-[#8A9A8A]">/</span>
+            <span className="text-[#0A1F0A] font-medium font-mono">{challan.challanNumber}</span>
+          </nav>
+
+          <div className="flex gap-2">
+            {challan.status === 'CONFIRMED' && (
+              <Button variant="outline" onClick={handlePrint} className="h-9 border-[#E2EFE2] text-[#5A6B5A]">
+                <Printer className="w-4 h-4 mr-2" />
+                Print
               </Button>
-            </>
-          )}
+            )}
+            
+            {canEdit && (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setCancelOpen(true)}
+                  className="h-9 border-[#FBCFE8] text-[#E11D48] hover:bg-[#FFF1F2]"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => setConfirmOpen(true)}
+                  className="h-9 bg-[#142814] text-white hover:bg-[#1a2e1a]"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Confirm
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left — main content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Customer */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-[var(--radius-md)] bg-bg-elevated flex items-center justify-center">
-                  <Building2 className="h-5 w-5 text-text-muted" aria-hidden="true" />
+      <div className="max-w-6xl mx-auto p-6 lg:p-8 space-y-6">
+        
+        {/* Print Header (Only visible on print) */}
+        <div className="hidden print:block mb-8 pb-8 border-b-2 border-black">
+          <h1 className="text-3xl font-bold uppercase tracking-widest">DELIVERY CHALLAN</h1>
+          <p className="font-mono mt-2">No. {challan.challanNumber}</p>
+        </div>
+
+        {/* Header Card */}
+        <div className="bg-white rounded-xl border border-[#E2EFE2] shadow-sm p-6 print:shadow-none print:border-black">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-[#0A1F0A] font-space">{challan.challanNumber}</h1>
+              <div className="flex items-center gap-4 mt-2 text-sm text-[#5A6B5A]">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  {formatDate(challan.createdAt)}
+                </span>
+                <span>By {challan.createdByName}</span>
+              </div>
+            </div>
+            <div className="print:hidden">
+              <StatusBadge status={challan.status} />
+            </div>
+            <div className="hidden print:block">
+              <p className="font-bold text-lg uppercase">{challan.status}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <div className="space-y-6">
+            
+            {/* Customer Card */}
+            <div className="bg-white rounded-xl border border-[#E2EFE2] shadow-sm p-6 print:shadow-none print:border-black">
+              <h3 className="text-sm font-bold text-[#0A1F0A] uppercase tracking-widest mb-4">Bill To</h3>
+              <div className="flex gap-4">
+                <div className="w-12 h-12 bg-[#F0F4F0] rounded-lg flex items-center justify-center print:hidden">
+                  <Building2 className="w-6 h-6 text-[#8A9A8A]" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-text-primary">{challan.customerName}</p>
-                  <p className="text-xs text-text-muted">{challan.customerBusiness}</p>
+                  <h4 className="font-bold text-lg text-[#0A1F0A]">{challan.customerName}</h4>
+                  <p className="text-[#5A6B5A] mt-1">{challan.customerBusiness}</p>
+                  
+                  <div className="mt-4 space-y-2 text-sm">
+                    {/* Assuming we might fetch full customer details, but we only have basic info in challan right now */}
+                    <div className="flex items-center gap-2 text-[#5A6B5A]">
+                       <Link to={`/customers/${challan.customerId}`} className="text-[#142814] font-medium hover:underline print:no-underline">
+                         View Customer Profile →
+                       </Link>
+                    </div>
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" className="ml-auto" onClick={() => navigate(`/customers/${challan.customerId}`)}>
-                  View Customer
-                </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Items table */}
-          <Card>
-            <CardHeader><CardTitle>Items</CardTitle></CardHeader>
-            <CardContent>
+            {/* Items Table */}
+            <div className="bg-white rounded-xl border border-[#E2EFE2] shadow-sm overflow-hidden print:shadow-none print:border-black">
+              <div className="p-5 border-b border-[#E2EFE2] print:border-black">
+                <h3 className="text-sm font-bold text-[#0A1F0A] uppercase tracking-widest">Line Items</h3>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border-subtle">
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Product</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider hidden sm:table-cell">SKU</th>
-                      <th className="text-right px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Price</th>
-                      <th className="text-right px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Qty</th>
-                      <th className="text-right px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">Total</th>
+                  <thead className="bg-[#E8F0E8] print:bg-transparent print:border-b-2 print:border-black">
+                    <tr className="h-10 text-left text-[11px] uppercase tracking-widest text-[#8A9A8A] print:text-black font-medium">
+                      <th className="px-5 w-12 text-center">#</th>
+                      <th className="px-5">Product</th>
+                      <th className="px-5 text-right">Price</th>
+                      <th className="px-5 text-center">Qty</th>
+                      <th className="px-5 text-right">Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {challan.items.map((item: ChallanItem) => (
-                      <tr key={item.id} className="border-b border-border-subtle last:border-0">
-                        <td className="px-3 py-2.5">
-                          <p className="text-sm text-text-primary">{item.productName}</p>
-                        </td>
-                        <td className="px-3 py-2.5 hidden sm:table-cell">
-                          <span className="text-sm font-mono text-text-muted">{item.sku}</span>
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <span className="text-sm font-mono tabular-nums text-text-secondary">{formatCurrency(item.unitPrice)}</span>
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <span className="text-sm font-mono tabular-nums font-medium text-text-primary">{item.quantity}</span>
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <span className="text-sm font-mono tabular-nums font-semibold text-text-primary">{formatCurrency(item.total)}</span>
-                        </td>
-                      </tr>
-                    ))}
+                    {challan.items.map((item, index) => {
+                      const currentProduct = products.find(p => p.id === item.productId);
+                      const priceChanged = currentProduct && currentProduct.unitPrice !== item.unitPrice;
+
+                      return (
+                        <tr key={item.id} className="border-b border-[#E2EFE2] last:border-0 print:border-black/20">
+                          <td className="px-5 py-4 text-center text-sm text-[#8A9A8A] font-mono">{index + 1}</td>
+                          <td className="px-5 py-4">
+                            <p className="font-medium text-[#0A1F0A]">{item.productName}</p>
+                            <p className="text-xs text-[#5A6B5A] font-mono mt-0.5">{item.sku}</p>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <span className="font-mono text-sm text-[#0A1F0A]">{formatCurrency(item.unitPrice)}</span>
+                            {priceChanged && (
+                              <span className="block text-[10px] text-[#8A9A8A] line-through print:hidden">
+                                Cur: {formatCurrency(currentProduct.unitPrice)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-center font-mono text-sm font-medium text-[#0A1F0A]">
+                            {item.quantity}
+                          </td>
+                          <td className="px-5 py-4 text-right font-mono text-sm font-bold text-[#142814]">
+                            {formatCurrency(item.total)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-border-default">
-                      <td colSpan={3} className="px-3 py-3 text-sm font-semibold text-text-primary hidden sm:table-cell">Total</td>
-                      <td className="px-3 py-3 text-right sm:hidden" colSpan={2}><span className="text-sm font-semibold">Total</span></td>
-                      <td className="px-3 py-3 text-right">
-                        <span className="text-sm font-mono tabular-nums font-semibold text-text-primary">{challan.totalQuantity}</span>
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <span className="text-base font-mono tabular-nums font-bold text-text-primary">{formatCurrency(challan.totalAmount)}</span>
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right — sidebar */}
-        <div className="space-y-6">
-          {/* Summary */}
-          <Card>
-            <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-text-muted">Items</span>
-                <span className="text-sm font-mono text-text-primary">{challan.items.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-text-muted">Total Quantity</span>
-                <span className="text-sm font-mono text-text-primary">{challan.totalQuantity}</span>
-              </div>
-              <div className="flex justify-between pt-2 border-t border-border-subtle">
-                <span className="text-sm font-semibold text-text-primary">Total Amount</span>
-                <span className="text-base font-mono tabular-nums font-bold text-text-primary">{formatCurrency(challan.totalAmount)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Timeline */}
-          <Card>
-            <CardHeader><CardTitle>Timeline</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-0">
-                {timeline.map((event, idx) => (
-                  <div key={idx} className="relative pl-6 pb-4 last:pb-0">
-                    {idx < timeline.length - 1 && <div className="absolute left-[7px] top-5 bottom-0 w-px bg-border-subtle" />}
-                    <div className={cn('absolute left-0 top-0.5', event.color)}>
-                      <event.icon className="h-[14px] w-[14px]" />
-                    </div>
-                    <p className="text-sm font-medium text-text-primary">{event.label}</p>
-                    <p className="text-xs font-mono text-text-muted">{formatDateTime(event.date)}</p>
+              
+              <div className="bg-[#F9FBF9] p-5 border-t border-[#E2EFE2] flex justify-end print:bg-transparent print:border-black">
+                <div className="w-64 space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#5A6B5A]">Subtotal</span>
+                    <span className="font-mono text-[#0A1F0A]">{formatCurrency(challan.totalAmount)}</span>
                   </div>
-                ))}
-                {challan.status === 'DRAFT' && (
-                  <div className="relative pl-6">
-                    <div className="absolute left-0 top-0.5 text-text-muted">
-                      <Clock className="h-[14px] w-[14px]" />
+                  <div className="flex justify-between font-bold text-lg pt-3 border-t border-[#E2EFE2] print:border-black">
+                    <span className="text-[#0A1F0A]">Grand Total</span>
+                    <span className="font-mono text-[#142814]">{formatCurrency(challan.totalAmount)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div className="space-y-6">
+            {/* Timeline */}
+            <div className="bg-white rounded-xl border border-[#E2EFE2] shadow-sm p-6 print:hidden">
+              <h3 className="text-sm font-bold text-[#0A1F0A] uppercase tracking-widest mb-6">Timeline</h3>
+              
+              <div className="space-y-6 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-[#E2EFE2] before:to-transparent">
+                
+                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                  <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-[#142814] text-white shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow" />
+                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] ml-4 md:ml-0 md:group-odd:text-right">
+                     <p className="font-medium text-sm text-[#0A1F0A]">Draft Created</p>
+                     <p className="text-xs text-[#8A9A8A] font-mono mt-1">{formatDateTime(challan.createdAt)}</p>
+                  </div>
+                </div>
+
+                {challan.confirmedAt && (
+                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-[#16A34A] text-white shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow" />
+                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] ml-4 md:ml-0 md:group-odd:text-right">
+                       <p className="font-medium text-sm text-[#059669]">Challan Confirmed</p>
+                       <p className="text-xs text-[#8A9A8A] font-mono mt-1">{formatDateTime(challan.confirmedAt)}</p>
+                       <p className="text-xs text-[#5A6B5A] mt-1">Stock deducted successfully.</p>
                     </div>
-                    <p className="text-sm text-text-muted italic">Awaiting confirmation</p>
                   </div>
                 )}
-              </div>
-            </CardContent>
-          </Card>
 
-          {challan.notes && (
-            <Card>
-              <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
-              <CardContent><p className="text-sm text-text-secondary">{challan.notes}</p></CardContent>
-            </Card>
-          )}
+                {challan.cancelledAt && (
+                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-[#E11D48] text-white shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow" />
+                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] ml-4 md:ml-0 md:group-odd:text-right">
+                       <p className="font-medium text-sm text-[#E11D48]">Challan Cancelled</p>
+                       <p className="text-xs text-[#8A9A8A] font-mono mt-1">{formatDateTime(challan.cancelledAt)}</p>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+            
+            {/* Notes */}
+            {challan.notes && (
+              <div className="bg-[#FFFBEB] rounded-xl border border-[#FDE68A] shadow-sm p-6 print:hidden">
+                <h3 className="text-sm font-bold text-[#D97706] uppercase tracking-widest mb-2">Notes</h3>
+                <p className="text-sm text-[#92400E] whitespace-pre-wrap">{challan.notes}</p>
+              </div>
+            )}
+            
+          </div>
         </div>
       </div>
 
-      {/* Confirm Dialog */}
-      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirm Challan?</DialogTitle>
-            <DialogDescription>
-              Confirming challan <span className="font-mono font-semibold">{challan.challanNumber}</span> will deduct stock for all {challan.items.length} items. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirm(false)}>Cancel</Button>
-            <Button onClick={handleConfirm} disabled={confirmChallan.isPending}>
-              {confirmChallan.isPending ? 'Confirming...' : 'Confirm Challan'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Confirm Challan"
+        description="Confirming this challan will deduct stock from inventory permanently."
+        confirmText="Confirm"
+        confirmVariant="default"
+        onConfirm={handleConfirm}
+        isLoading={confirmMutation.isPending}
+      />
 
-      {/* Cancel Dialog */}
-      <Dialog open={showCancel} onOpenChange={setShowCancel}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cancel Challan?</DialogTitle>
-            <DialogDescription>
-              This will mark challan <span className="font-mono font-semibold">{challan.challanNumber}</span> as cancelled.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCancel(false)}>Keep Challan</Button>
-            <Button variant="danger" onClick={handleCancel} disabled={cancelChallan.isPending}>
-              {cancelChallan.isPending ? 'Cancelling...' : 'Cancel Challan'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
+      <ConfirmDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        title="Cancel Challan"
+        description="Are you sure you want to cancel this draft? It will be marked as cancelled."
+        confirmText="Cancel Draft"
+        confirmVariant="danger"
+        onConfirm={handleCancel}
+        isLoading={cancelMutation.isPending}
+      />
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === 'DRAFT') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs uppercase font-bold tracking-wider bg-[#FEF3C7] text-[#D97706]">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
+        Draft
+      </span>
+    );
+  }
+  if (status === 'CONFIRMED') {
+    return (
+      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs uppercase font-bold tracking-wider bg-[#DCFCE7] text-[#15803D]">
+        Confirmed
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs uppercase font-bold tracking-wider bg-[#F1F5F9] text-[#64748B] line-through opacity-70">
+      Cancelled
+    </span>
   );
 }
