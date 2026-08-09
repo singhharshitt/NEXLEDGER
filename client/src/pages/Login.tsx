@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import AuthWireframe from '@/components/auth/AuthWireframe';
 import { cn } from '@/lib/utils';
 import type { Role } from '@/types';
+import { Logo } from '@/components/common/Logo';
 
 const loginSchema = z.object({
   email: z.email('Please enter a valid email address'),
@@ -49,16 +50,6 @@ function roleLabel(role: Role): string {
   return ROLE_CONFIG.find((r) => r.role === role)?.label ?? role;
 }
 
-function Logo({ inverse }: { inverse?: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={cn('font-display text-2xl font-bold tracking-tight', inverse ? 'text-white' : 'text-text-primary')}>
-        NexLedger
-      </span>
-      <span className="text-lg leading-none text-accent-lime-bright">◆</span>
-    </div>
-  );
-}
 
 function RoleCard({
   option,
@@ -98,10 +89,10 @@ function RoleCard({
 
 /* ── Development-only demo credentials (real seeded accounts) ── */
 const DEMO_ACCOUNTS: { role: Role; email: string }[] = [
-  { role: 'ADMIN', email: 'admin@example.com' },
-  { role: 'SALES', email: 'sales@example.com' },
-  { role: 'WAREHOUSE', email: 'warehouse@example.com' },
-  { role: 'ACCOUNTS', email: 'accounts@example.com' },
+  { role: 'ADMIN', email: 'admin@nexledger.example.com' },
+  { role: 'SALES', email: 'sales@nexledger.example.com' },
+  { role: 'WAREHOUSE', email: 'warehouse@nexledger.example.com' },
+  { role: 'ACCOUNTS', email: 'accounts@nexledger.example.com' },
 ];
 const DEMO_PASSWORD = 'NexLedger@2026!';
 
@@ -169,7 +160,7 @@ export default function Login() {
 
         <div className="relative z-10 mx-auto flex w-full max-w-[560px] flex-col">
           <div className="absolute left-6 top-6 lg:static lg:mb-2 lg:flex lg:justify-center">
-            <Logo inverse />
+            <Logo inverse size="xl" />
           </div>
 
           {/* 3D wireframe hero */}
@@ -210,7 +201,7 @@ export default function Login() {
         <div className="relative w-full max-w-[420px] rounded-[24px] border border-[#E2EFE2] bg-white p-6 shadow-[0_12px_40px_rgba(10,31,10,0.08)] md:p-8">
           {/* Mobile logo */}
           <div className="mb-6 flex justify-center lg:hidden">
-            <Logo />
+            <Logo size="xl" />
           </div>
 
           <div className="mb-6">

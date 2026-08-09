@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui.store';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Role } from '@/types';
+import { Logo } from '@/components/common/Logo';
 
 interface NavItem {
   label: string;
@@ -59,9 +60,7 @@ function NavContent({
           sidebarCollapsed ? 'justify-center' : 'gap-3'
         )}
       >
-        <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-accent-primary flex items-center justify-center shrink-0">
-          <span className="text-text-inverse font-bold text-sm">N</span>
-        </div>
+        <Logo size="md" isCollapsed={sidebarCollapsed} showWordmark={false} />
         {!sidebarCollapsed && (
           <div className="flex items-center justify-between flex-1 min-w-0">
             <div>
