@@ -30,6 +30,15 @@ export async function listUsers() {
   return rows;
 }
 
+export async function findUsersByRoles(roles: string[]) {
+  if (roles.length === 0) return [];
+  const { rows } = await pool.query(
+    `SELECT id FROM users WHERE role = ANY($1) AND is_active = TRUE`,
+    [roles]
+  );
+  return rows.map(r => r.id);
+}
+
 export async function createUser(data: {
   fullName: string;
   email: string;

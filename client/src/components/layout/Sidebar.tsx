@@ -60,7 +60,7 @@ function NavContent({
           sidebarCollapsed ? 'justify-center' : 'gap-3'
         )}
       >
-        <Logo size="md" isCollapsed={sidebarCollapsed} showWordmark={false} />
+        <Logo variant="light" size="md" isCollapsed={sidebarCollapsed} showWordmark={false} />
         {!sidebarCollapsed && (
           <div className="flex items-center justify-between flex-1 min-w-0">
             <div>

@@ -199,9 +199,8 @@ export default function Login() {
         />
 
         <div className="relative w-full max-w-[420px] rounded-[24px] border border-[#E2EFE2] bg-white p-6 shadow-[0_12px_40px_rgba(10,31,10,0.08)] md:p-8">
-          {/* Mobile logo */}
           <div className="mb-6 flex justify-center lg:hidden">
-            <Logo size="xl" />
+            <Logo variant="light" size="xl" />
           </div>
 
           <div className="mb-6">
@@ -354,36 +353,34 @@ export default function Login() {
             )}
           </AnimatePresence>
 
-          {import.meta.env.DEV && (
-            <div className="mt-6 border-t border-[#E2EFE2] pt-4">
-              <button
-                type="button"
-                onClick={() => setShowDemo((s) => !s)}
-                className="inline-flex items-center gap-1 text-[13px] font-medium text-[#8A9A8A] transition-colors hover:text-[#5A6B5A]"
-                aria-expanded={showDemo}
-              >
-                Demo credentials
-                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', showDemo && 'rotate-180')} />
-              </button>
+          <div className="mt-6 border-t border-[#E2EFE2] pt-4">
+            <button
+              type="button"
+              onClick={() => setShowDemo((s) => !s)}
+              className="inline-flex items-center gap-1 text-[13px] font-medium text-[#8A9A8A] transition-colors hover:text-[#5A6B5A]"
+              aria-expanded={showDemo}
+            >
+              Demo credentials
+              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', showDemo && 'rotate-180')} />
+            </button>
 
-              {showDemo && (
-                <div className="mt-3 space-y-1.5">
-                  {DEMO_ACCOUNTS.map((account) => (
-                    <button
-                      key={account.role}
-                      type="button"
-                      onClick={() => applyDemo(account)}
-                      className="flex w-full items-center justify-between rounded-lg border border-[#E2EFE2] bg-[#F8FAF8] px-3 py-2 text-left transition-colors hover:border-[#142814]"
-                    >
-                      <span className="text-xs font-semibold text-[#5A6B5A]">{account.role}</span>
-                      <span className="font-mono text-[11px] text-[#8A9A8A]">{account.email}</span>
-                    </button>
-                  ))}
-                  <p className="font-mono text-[11px] text-[#8A9A8A] pt-1">Password: {DEMO_PASSWORD}</p>
-                </div>
-              )}
-            </div>
-          )}
+            {showDemo && (
+              <div className="mt-3 space-y-1.5">
+                {DEMO_ACCOUNTS.map((account) => (
+                  <button
+                    key={account.role}
+                    type="button"
+                    onClick={() => applyDemo(account)}
+                    className="flex w-full items-center justify-between rounded-lg border border-[#E2EFE2] bg-[#F8FAF8] px-3 py-2 text-left transition-colors hover:border-[#142814]"
+                  >
+                    <span className="text-xs font-semibold text-[#5A6B5A]">{account.role}</span>
+                    <span className="font-mono text-[11px] text-[#8A9A8A]">{account.email}</span>
+                  </button>
+                ))}
+                <p className="font-mono text-[11px] text-[#8A9A8A] pt-1">Password: {DEMO_PASSWORD}</p>
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </div>

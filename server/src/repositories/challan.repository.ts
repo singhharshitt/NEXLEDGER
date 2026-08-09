@@ -100,6 +100,19 @@ export async function getChallanItems(challanId: string, client?: PoolClient) {
   return rows;
 }
 
+export async function getChallanItemsBulk(challanIds: string[], client?: PoolClient) {
+  if (challanIds.length === 0) return [];
+  const db = client ?? pool;
+  const { rows } = await db.query(
+    `SELECT ci.*, p.current_stock AS available_stock
+     FROM challan_items ci
+     LEFT JOIN products p ON p.id = ci.product_id
+     WHERE ci.challan_id = ANY($1)`,
+    [challanIds]
+  );
+  return rows;
+}
+
 export async function createChallan(
   data: {
     customerId: string;
@@ -428,12 +441,21 @@ export async function getRecentChallans(limit = 5) {
 
 export async function listChallansWithItems(query: Record<string, unknown>) {
   const result = await listChallans(query);
-  const items = await Promise.all(
-    result.rows.map(async (row) => {
-      const challanItems = await getChallanItems(row.id);
-      return { challan: row, items: challanItems };
-    })
-  );
+  
+  const challanIds = result.rows.map((row) => row.id);
+  const allItems = await getChallanItemsBulk(challanIds);
+  
+  const itemsByChallanId = allItems.reduce((acc, item) => {
+    if (!acc[item.challan_id]) acc[item.challan_id] = [];
+    acc[item.challan_id].push(item);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const items = result.rows.map((row) => ({
+    challan: row,
+    items: itemsByChallanId[row.id] || [],
+  }));
+
   return {
     items,
     pagination: {
@@ -447,10 +469,17 @@ export async function listChallansWithItems(query: Record<string, unknown>) {
 
 export async function getRecentChallansWithItems(limit = 5) {
   const rows = await getRecentChallans(limit);
-  return Promise.all(
-    rows.map(async (row) => {
-      const challanItems = await getChallanItems(row.id);
-      return { challan: row, items: challanItems };
-    })
-  );
+  const challanIds = rows.map((row) => row.id);
+  const allItems = await getChallanItemsBulk(challanIds);
+  
+  const itemsByChallanId = allItems.reduce((acc, item) => {
+    if (!acc[item.challan_id]) acc[item.challan_id] = [];
+    acc[item.challan_id].push(item);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  return rows.map((row) => ({
+    challan: row,
+    items: itemsByChallanId[row.id] || [],
+  }));
 }

@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { ProfileTab } from '@/components/settings/ProfileTab';
 import { CompanyTab } from '@/components/settings/CompanyTab';
 import { UsersTab } from '@/components/settings/UsersTab';
+import { NotificationsTab } from '@/components/settings/NotificationsTab';
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -27,6 +28,9 @@ export default function SettingsPage() {
             <TabsTrigger value="company" className="rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               Company
             </TabsTrigger>
+            <TabsTrigger value="notifications" className="rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              Notifications
+            </TabsTrigger>
             {user?.role === 'ADMIN' && (
               <TabsTrigger value="users" className="rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
                 Users
@@ -39,6 +43,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="company" className="mt-6">
             <CompanyTab />
+          </TabsContent>
+          <TabsContent value="notifications" className="mt-6">
+            <NotificationsTab />
           </TabsContent>
           {user?.role === 'ADMIN' && (
             <TabsContent value="users" className="mt-6">

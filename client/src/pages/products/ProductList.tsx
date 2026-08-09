@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Package, SearchX } from 'lucide-react';
@@ -48,17 +48,17 @@ export default function ProductList() {
   const debouncedSearch = useDebounce(searchInput, 400);
 
   // Sync debounced search to URL
-  useCallback(() => {
-    setSearchParams(prev => {
-      if (debouncedSearch) prev.set('search', debouncedSearch);
-      else prev.delete('search');
-      if (debouncedSearch !== search) {
-        prev.set('page', '1');
-      }
-      return prev;
-    });
-  }, [debouncedSearch, search, setSearchParams])();
-
+  useEffect(() => {
+    if (debouncedSearch !== search) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        if (debouncedSearch) next.set('search', debouncedSearch);
+        else next.delete('search');
+        next.set('page', '1');
+        return next;
+      });
+    }
+  }, [debouncedSearch, search, setSearchParams]);
   // Modals state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);

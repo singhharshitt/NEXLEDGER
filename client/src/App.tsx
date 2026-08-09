@@ -19,6 +19,9 @@ import ChallanDetail from '@/pages/challans/ChallanDetail';
 import NotFound from '@/pages/NotFound';
 import Unauthorized from '@/pages/Unauthorized';
 
+import { SocketProvider } from '@/contexts/SocketContext';
+import SettingsPage from '@/pages/settings/SettingsPage';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -36,7 +39,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
     void initialize();
   }, [initialize]);
 
-  return <>{children}</>;
+  return <SocketProvider>{children}</SocketProvider>;
 }
 
 function LoginRoute() {
@@ -141,6 +144,15 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN', 'SALES', 'ACCOUNTS']}>
                     <ChallanDetail />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="settings"
+                element={
+                  <ProtectedRoute>
+                    <SettingsPage />
                   </ProtectedRoute>
                 }
               />

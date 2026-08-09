@@ -1,4 +1,5 @@
-import { Menu, Search, Bell, LogOut } from 'lucide-react';
+import { Menu, Search, LogOut } from 'lucide-react';
+import { NotificationBell } from './NotificationBell';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useNavigate } from 'react-router-dom';
@@ -56,11 +57,7 @@ export function TopNav() {
 
       {/* Right actions */}
       <div className="flex items-center gap-2">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon-sm" className="relative" aria-label="Notifications">
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute top-1 right-1 h-2 w-2 bg-danger rounded-full" />
-        </Button>
+        <NotificationBell />
 
         {/* User menu */}
         <div className="relative" ref={menuRef}>

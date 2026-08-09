@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getApiErrorMessage } from '@/lib/api-utils';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.SERVER_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },

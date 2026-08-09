@@ -30,7 +30,11 @@ async function start(): Promise<void> {
     console.warn('⚠️  Could not run startup consistency check:', (err as Error).message);
   }
 
-  const server = app.listen(env.PORT, () => {
+  const httpServer = require('http').createServer(app);
+  const { initSocket } = require('./socket');
+  initSocket(httpServer);
+
+  const server = httpServer.listen(env.PORT, () => {
     console.log(`🚀 Server running on port ${env.PORT}`);
   });
 
