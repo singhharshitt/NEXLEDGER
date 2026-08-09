@@ -177,10 +177,12 @@ If you ran `npm run db:seed`, the database will be populated with a rich dataset
 All seed accounts use the exact same password:
 **Password:** `NexLedger@2026!`
 
-- **Admin**: `admin@example.com`
-- **Sales**: `sales@example.com`
-- **Warehouse**: `warehouse@example.com`
-- **Accounts**: `accounts@example.com`
+- **Admin**: `admin@nexledger.example.com`
+- **Sales**: `sales@nexledger.example.com`
+- **Warehouse**: `warehouse@nexledger.example.com`
+- **Accounts**: `accounts@nexledger.example.com`
+
+Full seed coverage and reset behavior are documented in [`docs/SEED_DATA.md`](docs/SEED_DATA.md).
 
 ---
 

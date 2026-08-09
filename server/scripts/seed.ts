@@ -30,6 +30,45 @@ function challanNumber(sequence: number): string {
   return `CH-${year}-${String(900000 + sequence).padStart(6, "0")}`;
 }
 
+async function getTableColumns(client: PoolClient, tableName: string): Promise<Set<string>> {
+  const { rows } = await client.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName]
+  );
+  return new Set(rows.map((row) => row.column_name as string));
+}
+
+function addColumn(
+  availableColumns: Set<string>,
+  columns: string[],
+  values: unknown[],
+  columnName: string,
+  value: unknown
+): void {
+  if (availableColumns.has(columnName) && !columns.includes(columnName)) {
+    columns.push(columnName);
+    values.push(value);
+  }
+}
+
+async function insertRow(
+  client: PoolClient,
+  tableName: string,
+  columns: string[],
+  values: unknown[]
+): Promise<{ id: string }> {
+  const placeholders = columns.map((_, index) => `$${index + 1}`).join(",");
+  const { rows } = await client.query(
+    `INSERT INTO ${tableName} (${columns.join(", ")})
+     VALUES (${placeholders})
+     RETURNING id`,
+    values
+  );
+  return rows[0];
+}
+
 const demoUsers: Array<{ fullName: string; email: string; role: Role }> = [
   { fullName: "Aarav Mehta", email: `admin@${DEMO_DOMAIN}`, role: "ADMIN" },
   { fullName: "Riya Kapoor", email: `sales@${DEMO_DOMAIN}`, role: "SALES" },
@@ -109,13 +148,15 @@ const products = [
   { key: "tester", name: "LAN Cable Tester", sku: "NX-NET-TST-026", category: "Networking", unitPrice: 899, finalStock: 16, minStock: 5 },
 ] as const;
 
+type ProductKey = (typeof products)[number]["key"];
+
 const challanPlans: Array<{
   customer: string;
   status: ChallanStatus;
   createdOffset: number;
   createdBy: Role;
   notes: string;
-  items: Array<{ product: string; quantity: number; snapshotPrice?: number }>;
+  items: Array<{ product: ProductKey; quantity: number; snapshotPrice?: number }>;
 }> = [
   { customer: "Metro Traders", status: "CONFIRMED", createdOffset: -1, createdBy: "SALES", notes: "Main demo scenario: keyboard stock reduced after confirmation.", items: [{ product: "keyboard", quantity: 20, snapshotPrice: 999 }] },
   { customer: "Sharma Wholesale Mart", status: "CONFIRMED", createdOffset: -2, createdBy: "SALES", notes: "Repeat wholesale order for office accessories.", items: [{ product: "mouse", quantity: 28 }, { product: "hdmi", quantity: 40 }, { product: "paper", quantity: 80 }] },
@@ -190,15 +231,17 @@ async function resetAllData(client: PoolClient): Promise<void> {
 async function insertUsers(client: PoolClient): Promise<Record<Role, string>> {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, env.BCRYPT_ROUNDS);
   const primaryUserIds = {} as Record<Role, string>;
+  const availableColumns = await getTableColumns(client, "users");
 
   for (const user of demoUsers) {
-    const { rows } = await client.query(
-      `INSERT INTO users (full_name, email, password_hash, role, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, true, $5, $5)
-       RETURNING id`,
-      [user.fullName, user.email, passwordHash, user.role, daysFromNow(-55)]
-    );
-    if (!primaryUserIds[user.role]) primaryUserIds[user.role] = rows[0].id;
+    const columns = ["full_name", "email", "password_hash", "role", "is_active", "created_at", "updated_at"];
+    const createdAt = daysFromNow(-55);
+    const values = [user.fullName, user.email, passwordHash, user.role, true, createdAt, createdAt];
+
+    addColumn(availableColumns, columns, values, "name", user.fullName);
+
+    const row = await insertRow(client, "users", columns, values);
+    if (!primaryUserIds[user.role]) primaryUserIds[user.role] = row.id;
   }
 
   return primaryUserIds;
@@ -206,37 +249,44 @@ async function insertUsers(client: PoolClient): Promise<Record<Role, string>> {
 
 async function insertCustomers(client: PoolClient, userIds: Record<Role, string>): Promise<Map<string, string>> {
   const ids = new Map<string, string>();
+  const availableColumns = await getTableColumns(client, "customers");
 
   for (let i = 0; i < customerSeed.length; i++) {
     const [businessName, contactName, type, status, city, state, followOffset, creditLimit] = customerSeed[i];
     const slug = businessName.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
     const hasGstin = i % 5 !== 3;
     const createdAt = daysFromNow(-45 + i, 9);
-    const { rows } = await client.query(
-      `INSERT INTO customers (
-        business_name, contact_name, email, mobile, address, city, state, gstin,
-        type, status, credit_limit, notes, follow_up_date, created_by, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
-      RETURNING id`,
-      [
-        businessName,
-        contactName,
-        `${slug}@${CUSTOMER_DOMAIN}`,
-        `98${String(76000000 + i).padStart(8, "0")}`,
-        `${12 + i}, ${city} Trade Market`,
-        city,
-        state,
-        hasGstin ? `27AA${String(1000 + i)}NX${String.fromCharCode(65 + (i % 26))}1Z${i % 9}` : null,
-        type as CustomerType,
-        status as CustomerStatus,
-        creditLimit,
-        `${businessName} is part of the NexLedger demo distribution pipeline.`,
-        followOffset === null ? null : dateOnly(Number(followOffset)),
-        userIds.SALES,
-        createdAt,
-      ]
-    );
-    ids.set(businessName, rows[0].id);
+    
+    const columns = [
+      "business_name", "contact_name", "email", "mobile", "address", "city", "state", "gstin",
+      "type", "status", "credit_limit", "notes", "follow_up_date", "created_by", "created_at", "updated_at"
+    ];
+    
+    const values = [
+      businessName,
+      contactName,
+      `${slug}@${CUSTOMER_DOMAIN}`,
+      `98${String(76000000 + i).padStart(8, "0")}`,
+      `${12 + i}, ${city} Trade Market`,
+      city,
+      state,
+      hasGstin ? `27AA${String(1000 + i)}NX${String.fromCharCode(65 + (i % 26))}1Z${i % 9}` : null,
+      type as CustomerType,
+      status as CustomerStatus,
+      creditLimit,
+      `${businessName} is part of the NexLedger demo distribution pipeline.`,
+      followOffset === null ? null : dateOnly(Number(followOffset)),
+      userIds.SALES,
+      createdAt,
+      createdAt
+    ];
+
+    addColumn(availableColumns, columns, values, "customer_type", type);
+    addColumn(availableColumns, columns, values, "customer_status", status);
+    addColumn(availableColumns, columns, values, "customer_name", businessName);
+
+    const row = await insertRow(client, "customers", columns, values);
+    ids.set(businessName, row.id);
   }
 
   return ids;
@@ -264,42 +314,69 @@ async function insertFollowUps(client: PoolClient, customerIds: Map<string, stri
     ["NovaDesk Supplies", 7, "Confirm delivery address and dispatch window.", false],
   ] as const;
 
+  const availableColumns = await getTableColumns(client, "customer_followups");
+
   for (let i = 0; i < followUps.length; i++) {
     const [customerName, offset, notes, completed] = followUps[i];
-    const customerId = customerIds.get(customerName);
+    const customerId = customerIds.get(customerName as string);
     if (!customerId) continue;
-    await client.query(
-      `INSERT INTO customer_followups (customer_id, notes, follow_up_date, completed, created_by, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [customerId, notes, dateOnly(offset), completed, userIds.SALES, daysFromNow(offset - 1, 11)]
-    );
+
+    const columns = ["customer_id", "follow_up_date", "created_by", "created_at"];
+    const values = [customerId, dateOnly(offset as number), userIds.SALES, daysFromNow((offset as number) - 1, 11)];
+
+    if (availableColumns.has("notes")) {
+      columns.push("notes");
+      values.push(notes);
+    } else if (availableColumns.has("note")) {
+      columns.push("note");
+      values.push(notes);
+    }
+
+    if (availableColumns.has("completed")) {
+      columns.push("completed");
+      values.push(completed);
+    } else if (availableColumns.has("is_completed")) {
+      columns.push("is_completed");
+      values.push(completed);
+    }
+
+    await insertRow(client, "customer_followups", columns, values);
   }
 }
 
 async function insertProducts(client: PoolClient, userIds: Record<Role, string>): Promise<Map<string, string>> {
   const ids = new Map<string, string>();
+  const availableColumns = await getTableColumns(client, "products");
 
   for (let i = 0; i < products.length; i++) {
     const product = products[i];
-    const { rows } = await client.query(
-      `INSERT INTO products (
-        name, sku, description, category, unit, unit_price,
-        current_stock, minimum_stock, is_active, created_by, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,'pcs',$5,$6,$7,true,$8,$9,$9)
-      RETURNING id`,
-      [
-        product.name,
-        product.sku,
-        `${product.name} for wholesale and distribution demo workflows.`,
-        product.category,
-        product.unitPrice,
-        product.finalStock,
-        product.minStock,
-        userIds.ADMIN,
-        daysFromNow(-70 + i, 8),
-      ]
-    );
-    ids.set(product.key, rows[0].id);
+    
+    const columns = [
+      "name", "sku", "description", "category", "unit", "unit_price",
+      "current_stock", "minimum_stock", "is_active", "created_by", "created_at", "updated_at"
+    ];
+    
+    const values = [
+      product.name,
+      product.sku,
+      `${product.name} for wholesale and distribution demo workflows.`,
+      product.category,
+      "pcs",
+      product.unitPrice,
+      product.finalStock,
+      product.minStock,
+      true,
+      userIds.ADMIN,
+      daysFromNow(-70 + i, 8),
+      daysFromNow(-70 + i, 8)
+    ];
+
+    addColumn(availableColumns, columns, values, "price", product.unitPrice);
+    addColumn(availableColumns, columns, values, "stock_quantity", product.finalStock);
+    addColumn(availableColumns, columns, values, "product_name", product.name);
+
+    const row = await insertRow(client, "products", columns, values);
+    ids.set(product.key, row.id);
   }
 
   return ids;
@@ -369,10 +446,13 @@ async function insertBaseStockMovements(
     }
 
     if (forcedOut > 0) {
+      const forcedOutAt = product.finalStock === 0
+        ? daysFromNow(-3 + (i % 2), 16)
+        : daysFromNow(-16 + (i % 7), 16);
       await client.query(
         `INSERT INTO stock_movements (product_id, quantity, type, notes, reference_id, created_by, created_at)
          VALUES ($1,$2,'OUT',$3,NULL,$4,$5)`,
-        [productId, forcedOut, "Manual adjustment - damaged or sample stock", userIds.WAREHOUSE, daysFromNow(-16 + (i % 7), 16)]
+        [productId, forcedOut, "Manual adjustment - damaged or sample stock", userIds.WAREHOUSE, forcedOutAt]
       );
     }
   }
@@ -467,11 +547,14 @@ async function insertChallans(
     }
   }
 
+  const seqCols = await getTableColumns(client, "challan_sequences");
+  const colName = seqCols.has("last_sequence") ? "last_sequence" : "last_number";
+
   await client.query(
-    `INSERT INTO challan_sequences (year, last_sequence)
+    `INSERT INTO challan_sequences (year, ${colName})
      VALUES ($1, $2)
      ON CONFLICT (year) DO UPDATE
-     SET last_sequence = GREATEST(challan_sequences.last_sequence, EXCLUDED.last_sequence)`,
+     SET ${colName} = GREATEST(challan_sequences.${colName}, EXCLUDED.${colName})`,
     [year, 900000 + challanPlans.length]
   );
 }
@@ -542,7 +625,7 @@ export async function seed(): Promise<void> {
   }
 
   const client = await pool.connect();
-  let counts: Record<string, number>;
+  let counts: Record<string, number> | null = null;
 
   try {
     await client.query("BEGIN");
@@ -581,6 +664,7 @@ export async function seed(): Promise<void> {
   }
 
   await verifyDemoLogins();
+  if (!counts) throw new Error("Seed verification did not return record counts.");
 
   console.log("");
   console.log("NEXLEDGER SEED COMPLETE");

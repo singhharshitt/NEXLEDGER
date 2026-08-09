@@ -43,7 +43,7 @@ npm run dev
 | `npm run build` | Compile TypeScript → `dist/` |
 | `npm start` | Run compiled `dist/server.js` |
 | `npm run db:migrate` | Apply pending SQL migrations |
-| `npm run db:seed` | Populate demo data (non-production only) |
+| `npm run db:seed` | Populate NexLedger demo data (non-production only) |
 | `npm test` | Run all tests (Vitest) |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run db:reset` | Migrate + seed in one step |
@@ -52,10 +52,12 @@ npm run dev
 
 | Email | Password | Role |
 |-------|----------|------|
-| admin@example.com | NexLedger@2026! | ADMIN |
-| sales@example.com | NexLedger@2026! | SALES |
-| warehouse@example.com | NexLedger@2026! | WAREHOUSE |
-| accounts@example.com | NexLedger@2026! | ACCOUNTS |
+| admin@nexledger.example.com | NexLedger@2026! | ADMIN |
+| sales@nexledger.example.com | NexLedger@2026! | SALES |
+| warehouse@nexledger.example.com | NexLedger@2026! | WAREHOUSE |
+| accounts@nexledger.example.com | NexLedger@2026! | ACCOUNTS |
+
+See `../docs/SEED_DATA.md` for seed coverage, reset behavior, and the main demo scenario.
 
 ## API Overview
 
