@@ -1,221 +1,229 @@
-# NexLedger
+# 🚀 NexLedger — Mini ERP + CRM Operations Portal
 
-> Connected operations. Smarter business.
-
-**Internal B2B ERP / CRM / Inventory platform for wholesale and distribution businesses.**
-
-![Status](https://img.shields.io/badge/status-documentation--only-lightgrey)
-![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL-blue)
-![Node.js](https://img.shields.io/badge/backend-Node.js-green)
-
-> ⚠️ **Documentation note:** This README was generated from the NexLedger product specification and an entity-relationship diagram only. No source repository (code, `package.json`, migrations, routes, or tests) was available for inspection at the time of writing. Every claim below is labeled **Verified** (confirmed from the ER diagram/spec) or **Not verified** (described in the spec but not confirmed against actual code). Replace the "Not verified" items once the repository is inspected — see [Section 20: How to Finish This README](#20-how-to-finish-this-readme).
+NexLedger is a full-stack, production-ready Mini ERP and CRM Operations Portal built to manage B2B operations. It features real-time inventory management, sales challan generation, customer lead tracking, and role-based access control to ensure secure, streamlined business processes.
 
 ---
 
-## Table of Contents
-
-1. [Overview](#1-overview)
-2. [Problem Statement](#2-problem-statement)
-3. [Core Roles](#3-core-roles)
-4. [Core Business Workflow](#4-core-business-workflow)
-5. [Database Schema](#5-database-schema)
-6. [Entity Relationship Diagram](#6-entity-relationship-diagram)
-7. [Architecture](#7-architecture-not-verified)
-8. [Technology Stack](#8-technology-stack)
-9. [Authentication & RBAC](#9-authentication--rbac-not-verified)
-10. [API](#10-api-not-verified)
-11. [Local Development](#11-local-development-not-verified)
-12. [Environment Variables](#12-environment-variables-not-verified)
-13. [Testing](#13-testing-not-verified)
-14. [Security](#14-security-not-verified)
-15. [Known Limitations](#15-known-limitations)
-16. [Future Roadmap](#16-future-roadmap)
-17. [Project Status](#17-project-status)
-18. [License](#18-license)
-19. [Author](#19-author)
-20. [How to Finish This README](#20-how-to-finish-this-readme)
-
----
-
-## 1. Overview
-
-NexLedger is a role-based business operations platform intended for wholesale and distribution workflows. Based on the entity relationships confirmed in the project's ER diagram, it centralizes **customers, products, inventory (via stock movements), and sales challans**, with **users** tied to the records they create.
-
-*Not verified: exact product description, target market claims, and elevator pitch — these come from the specification document, not from inspected code, and should be confirmed against the actual repository README (if one exists) or product owner.*
-
-## 2. Problem Statement
-
-Wholesale/distribution businesses typically need to coordinate customers, sales, inventory, and stock movements across multiple people. Fragmented tooling can cause inconsistent stock counts, duplicate operations, and poor visibility into who changed what. NexLedger's schema (confirmed below) is structured around a single, centrally-tracked source of truth for stock and customer transactions.
-
-## 3. Core Roles
-
-*Not verified against actual authorization code — the ER diagram confirms a `USERS` table exists and is linked to `CHALLANS` and `STOCK_MOVEMENTS`, but does not confirm specific role names or permissions.*
-
-The specification describes four intended roles:
-
-| Role | Intended Purpose |
-|---|---|
-| Admin | Full system access |
-| Sales | Customers, challans |
-| Warehouse | Inventory, stock movements |
-| Accounts | Read-only / financial visibility |
-
-**Action needed:** confirm actual role values from the `users` table schema or auth middleware before publishing.
-
-## 4. Core Business Workflow
-
-**Verified relationships (from ER diagram):** a `USER` creates a `CHALLAN` for a `CUSTOMER`; a `CHALLAN` contains one or more `CHALLAN_ITEMS`; each `CHALLAN_ITEM` references a `PRODUCT`; `PRODUCTS` generate `STOCK_MOVEMENTS`, which are also attributed to the `USER` who created them.
-
-```
-CUSTOMER
-   ↓
-CHALLAN (created by USER)
-   ↓
-CHALLAN_ITEMS (reference PRODUCT)
-   ↓
-STOCK_MOVEMENTS (product + user)
-```
-
-*Not verified: the specific lifecycle states (e.g., DRAFT → CONFIRMED), transactional guarantees, row-locking, or concurrency handling described in the specification. These are architecturally plausible given the schema shape (challans separate from stock movements) but are **not confirmed** without reading the actual service/transaction code.*
-
-## 5. Database Schema
-
-**Verified tables (from ER diagram):**
-
-| Table | Notes |
-|---|---|
-| `USERS` | Linked to `CUSTOMER_FOLLOWUPS`, `CHALLANS`, `STOCK_MOVEMENTS` as creator |
-| `CUSTOMERS` | Linked to `CUSTOMER_FOLLOWUPS` and `CHALLANS` |
-| `CUSTOMER_FOLLOWUPS` | Linked to both `USERS` and `CUSTOMERS` |
-| `PRODUCTS` | Linked to `CHALLAN_ITEMS` and `STOCK_MOVEMENTS` |
-| `CHALLANS` | Linked to `CUSTOMERS`, `USERS`, and `CHALLAN_ITEMS` |
-| `CHALLAN_ITEMS` | Linked to `CHALLANS` and `PRODUCTS` |
-| `STOCK_MOVEMENTS` | Linked to `PRODUCTS` and `USERS` |
-
-*Not verified: column-level detail (field names, types, constraints), since the ER diagram only shows table names and relationships, not fields.*
-
-## 6. Entity Relationship Diagram
-
-```mermaid
-erDiagram
-    USERS ||--o{ CUSTOMER_FOLLOWUPS : creates
-    CUSTOMERS ||--o{ CUSTOMER_FOLLOWUPS : has
-    CUSTOMERS ||--o{ CHALLANS : receives
-    CHALLANS ||--o{ CHALLAN_ITEMS : contains
-    PRODUCTS ||--o{ CHALLAN_ITEMS : referenced_by
-    PRODUCTS ||--o{ STOCK_MOVEMENTS : generates
-    USERS ||--o{ STOCK_MOVEMENTS : creates
-    USERS ||--o{ CHALLANS : creates
-```
-
-This diagram is transcribed directly from the ER diagram you provided.
-
-## 7. Architecture (Not verified)
-
-The specification describes a layered backend:
-
-```
-Frontend → REST API → Express → Middleware → Controllers → Services → Repositories → PostgreSQL (Supabase)
-```
-
-This has **not** been confirmed against an actual `server/src` directory structure. Document this section only after inspecting the real codebase.
-
-## 8. Technology Stack
-
-| Layer | Technology | Status |
-|---|---|---|
-| Database | PostgreSQL | Not verified |
-| DB Provider | Supabase | Not verified |
-| Backend Runtime | Node.js | Not verified |
-| API Framework | Express.js | Not verified |
-| Language | TypeScript | Not verified |
-| Auth | JWT | Not verified |
-| Password Hashing | bcrypt | Not verified |
-| Validation | Zod | Not verified |
-| Frontend | Not documented | Not verified |
-
-All entries above come from the specification document, not from inspected `package.json` dependencies. **Do not publish this table until confirmed.**
-
-## 9. Authentication & RBAC (Not verified)
-
-The specification describes JWT-based login with bcrypt password verification, and backend-enforced role checks (401 for unauthenticated, 403 for unauthorized). None of this is confirmed by the ER diagram, which only shows data relationships, not application logic. Confirm against actual middleware and route files.
-
-## 10. API (Not verified)
-
-No route files were available to inspect. Do not publish an endpoint table until one is generated directly from the actual Express routes.
-
-## 11. Local Development (Not verified)
-
-No `package.json` or setup scripts were available. Do not publish setup commands until confirmed against actual npm scripts.
-
-## 12. Environment Variables (Not verified)
-
-No `.env.example` was available. Do not publish an environment variable table until confirmed against actual configuration files. Never include real secret values.
-
-## 13. Testing (Not verified)
-
-**Test status: not verified.** No test files or test run output were available for inspection.
-
-## 14. Security (Not verified)
-
-The specification mentions JWT, bcrypt, Zod validation, parameterized SQL, RBAC, Helmet, CORS, and rate limiting. These are common, plausible choices for this stack but are **not confirmed** against actual dependencies or middleware.
-
-## 15. Known Limitations
-
-- This README itself is currently based on a specification and an ER diagram only — it has not been validated against the actual NexLedger codebase.
-- Backend logic (transactions, concurrency handling, RBAC enforcement) is undocumented pending repository access.
-
-## 16. Future Roadmap
-
-*Planned, not implemented (per specification):*
-- Advanced reporting
-- PDF challan generation
-- Refresh token rotation
-- Audit logs
-- Notifications
-- Multi-warehouse support
-
-## 17. Project Status
+## 📊 Project Audit Status
 
 | Area | Status |
 |---|---|
-| Database schema | ✅ Verified (from ER diagram) |
-| Business workflow (high level) | ✅ Verified (from ER diagram) |
-| Authentication | ⚠️ Needs verification |
-| RBAC | ⚠️ Needs verification |
-| API | ⚠️ Needs verification |
-| Testing | ⚠️ Needs verification |
-| Deployment | ⚠️ Needs verification |
-
-## 18. License
-
-No license file was available for inspection. **No license has currently been specified.**
-
-## 19. Author
-
-Author information was not available for inspection. Not documented.
-
-## 20. How to Finish This README
-
-To turn this into the full, fact-checked README the original specification calls for, share one of the following and I'll complete the remaining sections against real evidence instead of the spec:
-
-- A zip/archive of the repository
-- A public GitHub repo URL
-- The key files directly: `package.json`, routes, migrations/schema, `.env.example`, auth middleware, and any existing tests
-
-Once I have those, I'll fill in Sections 7–14 (architecture, stack, auth, API, setup, env vars, testing, security) with verified details and remove the "Not verified" labels.
+| Frontend Implementation | ✅ Complete |
+| Backend Implementation | ✅ Complete |
+| Database Schema | ✅ Complete |
+| Authentication | ✅ Complete (JWT-based) |
+| RBAC (Roles) | ✅ Complete (ADMIN, SALES, WAREHOUSE, ACCOUNTS) |
+| API Endpoints | ✅ Complete (34+ Verified endpoints) |
+| Setup / Migrations / Seed | ✅ Complete |
 
 ---
 
-## Demo Accounts (development only)
+## 🛠 Tech Stack
 
-Seeded by `server/scripts/seed.ts` (bcrypt-hashed). The login page shows a **Demo credentials** helper in development builds (`import.meta.env.DEV`) only.
+### Frontend
+- **Framework**: React 19 + TypeScript
+- **Build Tool**: Vite 8.2
+- **Styling**: Tailwind CSS v4, `lucide-react` icons
+- **UI Components**: Radix UI primitives (`@radix-ui/react-*`), Framer Motion
+- **State & Data Fetching**: Zustand, React Query v5 (`@tanstack/react-query`)
+- **Forms**: React Hook Form with Zod validation
+- **Routing**: React Router DOM v7
+- **Charts**: Recharts
+- **3D Graphics**: Three.js + React Three Fiber / Drei (used in Hero sections)
 
-| Role | Email | Password |
-|---|---|---|
-| Admin | `admin@example.com` | `NexLedger@2026!` |
-| Sales | `sales@example.com` | `NexLedger@2026!` |
-| Warehouse | `warehouse@example.com` | `NexLedger@2026!` |
-| Accounts | `accounts@example.com` | `NexLedger@2026!` |
+### Backend
+- **Runtime**: Node.js + TypeScript
+- **Framework**: Express 5.2
+- **Database**: PostgreSQL (`pg` library)
+- **Authentication**: JWT (`jsonwebtoken`) + bcrypt
+- **Security**: Helmet, express-rate-limit, cors
+- **Validation**: Zod
+- **Development**: `tsx`, `vitest`
 
-The role selector on `/login` is a UI/UX selection only — the backend remains authoritative. Selecting a role mismatched with the account is rejected with a clear message after real authentication. These credentials are never stored or authenticated with (if → email) style bypasses; all authentication goes through `POST /api/auth/login`.
+---
+
+## 🏗 Architecture & Core Business Workflows
+
+The NexLedger architecture follows a traditional decoupled client-server model:
+
+1. **Client Browser** (React SPA) communicates via REST JSON API to the Express server.
+2. **Express Server** validates tokens, enforces role-based access control (RBAC), and sanitizes payloads via Zod.
+3. **Database** (PostgreSQL) enforces referential integrity, constraints (e.g., stock cannot drop below zero), and timestamps.
+
+### The "Sales Challan to Inventory" Workflow
+
+```mermaid
+graph TD
+    A[Sales creates DRAFT Challan] --> B[Add Products to Draft]
+    B --> C[Confirm Challan]
+    C -->|API Validation| D{Stock Sufficient?}
+    D -->|Yes| E[DB: Mark CONFIRMED]
+    D -->|No| F[Reject 400]
+    E --> G[DB: Deduct Product Stock]
+    G --> H[DB: Insert 'OUT' Stock Movement]
+```
+
+---
+
+## 🗄 Database Schema (ER Overview)
+
+```mermaid
+erDiagram
+    users ||--o{ customers : "created_by"
+    users ||--o{ products : "created_by"
+    customers ||--o{ customer_followups : "has"
+    customers ||--o{ challans : "has"
+    challans ||--|{ challan_items : "contains"
+    products ||--o{ challan_items : "appears_in"
+    products ||--o{ stock_movements : "tracked_in"
+
+    users {
+        UUID id PK
+        TEXT role "ADMIN, SALES, WAREHOUSE, ACCOUNTS"
+    }
+    customers {
+        UUID id PK
+        TEXT status "LEAD, ACTIVE, INACTIVE"
+        TEXT type "RETAIL, WHOLESALE, DISTRIBUTOR"
+    }
+    products {
+        UUID id PK
+        INTEGER current_stock
+    }
+    challans {
+        UUID id PK
+        TEXT status "DRAFT, CONFIRMED, CANCELLED"
+    }
+    stock_movements {
+        UUID id PK
+        TEXT type "IN, OUT"
+        INTEGER quantity
+    }
+```
+
+---
+
+## 🛡 Authentication & RBAC
+
+Authentication is handled via JWT. Upon successful login (`POST /api/auth/login`), a token is issued. The client stores it locally (via Zustand store) and attaches it as `Bearer <token>` in the Authorization header.
+
+### Role Matrix
+
+| Feature | ADMIN | SALES | WAREHOUSE | ACCOUNTS |
+|---|---|---|---|---|
+| View Dashboard | ✅ | ✅ | ✅ | ✅ |
+| View Customers | ✅ | ✅ | ❌ | ✅ |
+| Edit/Create Customers | ✅ | ✅ | ❌ | ❌ |
+| Add Customer Followups| ✅ | ✅ | ❌ | ❌ |
+| View Products/Inventory| ✅ | ✅ | ✅ | ✅ |
+| Edit/Create Products | ✅ | ❌ | ❌ | ❌ |
+| Adjust Stock Manually | ✅ | ❌ | ✅ | ❌ |
+| View Challans | ✅ | ✅ | ❌ | ✅ |
+| Create/Confirm Challan| ✅ | ✅ | ❌ | ❌ |
+| View/Manage Users | ✅ | ❌ | ❌ | ❌ |
+
+*(Note: Any route violation results in a `403 Forbidden` response from the backend, accompanied by UI redirect to an Unauthorized page).*
+
+---
+
+## 💻 Local Setup & Installation
+
+### Prerequisites
+- Node.js (v20+ recommended)
+- PostgreSQL running locally (or Supabase Postgres connection string)
+
+### 1. Database Setup
+Ensure PostgreSQL is running. Create a new local database, e.g., `nexledger_db`.
+
+### 2. Environment Variables
+Create a `.env` file in the `server` directory (see `.env.example` below):
+```env
+# /server/.env
+DATABASE_URL=postgresql://postgres:password@localhost:5432/nexledger_db
+JWT_SECRET=your_super_secret_jwt_key_at_least_32_chars!
+PORT=5000
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:5173
+JWT_EXPIRES_IN=7d
+BCRYPT_ROUNDS=10
+```
+
+### 3. Server Startup
+```bash
+cd server
+npm install
+# Run migrations to create schema
+npm run db:migrate
+# Seed database with demo data (do NOT run in production)
+npm run db:seed
+# Start the development server
+npm run dev
+```
+
+### 4. Client Startup
+```bash
+cd client
+npm install
+npm run dev
+```
+The frontend will be available at `http://localhost:5173`.
+
+---
+
+## 🔑 Demo Credentials
+
+If you ran `npm run db:seed`, the database will be populated with a rich dataset including products, customers, existing challans, and stock movements.
+
+All seed accounts use the exact same password:
+**Password:** `NexLedger@2026!`
+
+- **Admin**: `admin@example.com`
+- **Sales**: `sales@example.com`
+- **Warehouse**: `warehouse@example.com`
+- **Accounts**: `accounts@example.com`
+
+---
+
+## 🚀 Deployment Guide
+
+### Backend Deployment (e.g., Render / Railway / Heroku)
+1. Provide the `DATABASE_URL` pointing to your managed PostgreSQL instance.
+2. Ensure `NODE_ENV=production` and `JWT_SECRET` is set to a long, secure random string.
+3. Set `CORS_ORIGIN` to your production frontend URL (e.g., `https://nexledger.com`).
+4. Build the typescript server: `npm run build`.
+5. Start command: `npm start` (which runs `node dist/server.js`).
+6. Note: Migrations (`npm run db:migrate`) should be run as part of the CI/CD pipeline or release phase before startup.
+
+### Frontend Deployment (e.g., Vercel / Netlify)
+1. Add environment variable `VITE_API_URL` pointing to the live backend (e.g., `https://api.nexledger.com/api`).
+2. Build command: `npm run build`
+3. Output directory: `dist`
+
+---
+
+## 📝 API & Postman Documentation
+
+A complete set of API documentation and an importable Postman collection have been generated from the verified codebase.
+
+- **API Documentation**: Located in [`docs/API.md`](./docs/API.md)
+- **Postman Collection**: Located in [`postman/NexLedger.postman_collection.json`](./postman/NexLedger.postman_collection.json)
+- **Postman Environment**: Located in [`postman/NexLedger.postman_environment.json`](./postman/NexLedger.postman_environment.json)
+
+*(Import both the Collection and the Environment into Postman. Login via the `Authentication > Login` request to auto-populate the token environment variable.)*
+
+---
+
+## ⚠️ Known Limitations & Assumptions
+
+### Critical / High
+- **Concurrency**: While the DB uses constraints to prevent negative stock (`current_stock >= 0`), high-concurrency challan confirmations could theoretically result in transaction contention. A more robust explicit row lock (`SELECT FOR UPDATE`) on the product row might be needed for scale.
+- **Images/Uploads**: The system currently does not support image uploads (e.g., product photos, user avatars).
+
+### Medium / Low
+- **Pagination**: The API `GET` endpoints support `page` and `limit`, but a bulk product catalog (>500 items) might require stricter server-side pagination limits enforced at the router level.
+- **Taxes/Discounts**: The Challan item calculation assumes `total = quantity * unit_price`. There is currently no implementation for regional taxes (GST variations), shipping fees, or line-item discounts.
+- **PDF Generation**: The `/challans/:id` page uses CSS `@media print` for paper outputs. Actual server-side PDF generation (e.g., Puppeteer/PDFKit) is not implemented.
+
+### Assumptions
+- **Product Cost vs Price**: Inventory valuation on the dashboard uses the selling `unitPrice`. A robust ERP would track Weighted Average Cost (WAC) or FIFO for actual inventory financial valuation.
+- **Challan Editing**: Once a Challan is marked `CONFIRMED`, it cannot be edited or reverted. To reverse stock, a manual stock adjustment or a "Sales Return" module would need to be built.
