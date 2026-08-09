@@ -38,3 +38,23 @@ try {
 
 export { env };
 export type Env = z.infer<typeof EnvSchema>;
+
+export const getAllowedOrigins = (): string[] => {
+  const origins = new Set<string>();
+  
+  if (env.CORS_ORIGIN) {
+    env.CORS_ORIGIN.split(",").forEach(o => origins.add(o.trim()));
+  }
+  
+  if (process.env.CLIENT_URL) {
+    const url = process.env.CLIENT_URL.trim();
+    if (!url.startsWith('http')) {
+      origins.add(`https://${url}`);
+      origins.add(`http://${url}`);
+    } else {
+      origins.add(url);
+    }
+  }
+  
+  return Array.from(origins);
+};

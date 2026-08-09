@@ -3,7 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
-import { env } from "./config/env";
+import { env, getAllowedOrigins } from "./config/env";
 import routes from "./routes";
 import { notFoundHandler, errorHandler } from "./middleware/errorHandler";
 
@@ -20,9 +20,10 @@ app.use(
     legacyHeaders: false,
   })
 );
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN.split(",").map((o) => o.trim()),
+    origin: getAllowedOrigins(),
     credentials: true,
   })
 );

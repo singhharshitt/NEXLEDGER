@@ -1,0 +1,80 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "NEXLEDGER",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#00A859",
+    "light": "#21C470",
+    "dark": "#008745",
+    "anchors": {
+      "from": "#00A859",
+      "to": "#21C470"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@nexledger.com"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://nexledger-three.vercel.app"
+  },
+  "navigation": [
+    {
+      "group": "Overview",
+      "pages": [
+        "introduction",
+        "getting-started",
+        "architecture"
+      ]
+    },
+    {
+      "group": "System & Security",
+      "pages": [
+        "database",
+        "security-and-auth"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/auth",
+        "api-reference/customers",
+        "api-reference/followups",
+        "api-reference/products",
+        "api-reference/inventory",
+        "api-reference/stock-movements",
+        "api-reference/challans",
+        "api-reference/dashboard",
+        "api-reference/health",
+        "api-reference/notifications"
+      ]
+    },
+    {
+      "group": "Technical Guides",
+      "pages": [
+        "frontend",
+        "testing",
+        "deployment",
+        "development"
+      ]
+    },
+    {
+      "group": "Operations",
+      "pages": [
+        "troubleshooting",
+        "contributing",
+        "changelog"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/nexledger/nexledger"
+  }
+}
