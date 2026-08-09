@@ -1,8 +1,17 @@
 import axios from 'axios';
 import { getApiErrorMessage } from '@/lib/api-utils';
 
+const getBaseUrl = () => {
+  const serverUrl = import.meta.env.SERVER_URL;
+  if (!serverUrl) return '/api';
+  // If SERVER_URL already ends with /api, use it as is
+  if (serverUrl.endsWith('/api')) return serverUrl;
+  // Otherwise append /api
+  return `${serverUrl.replace(/\/$/, '')}/api`;
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.SERVER_URL || '/api',
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
