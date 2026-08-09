@@ -3,9 +3,16 @@ import { challansService } from '@/services/challans.service';
 import type { ChallanFilters, CreateChallanInput } from '@/types';
 
 export function useChallans(filters?: ChallanFilters) {
+  const mappedFilters = { ...filters };
+  if (mappedFilters.sort) {
+    const [sortBy, sortOrder] = mappedFilters.sort.split(':');
+    mappedFilters.sortBy = sortBy;
+    mappedFilters.sortOrder = (sortOrder as 'asc' | 'desc') || 'desc';
+    delete mappedFilters.sort;
+  }
   return useQuery({
     queryKey: ['challans', filters],
-    queryFn: () => challansService.getAll(filters),
+    queryFn: () => challansService.getAll(mappedFilters),
   });
 }
 

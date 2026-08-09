@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion, type Variants } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Package, Warehouse as WarehouseIcon, Tag, Hash, ArrowDownLeft, ArrowUpRight, Plus } from 'lucide-react';
 import { useProduct, useProductStockMovements } from '@/hooks/useProducts';
@@ -16,16 +17,21 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { StockMovement } from '@/types';
 
 const stockAdjustSchema = z.object({
-  type: z.enum(['in', 'out']),
-  quantity: z.coerce.number().int().positive('Quantity must be positive'),
+  type: z.enum(['IN', 'OUT']),
+  quantity: z.number().int().positive('Quantity must be positive'),
   reason: z.string().min(1, 'Reason is required'),
 });
+
+const pageVariants: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -37,15 +43,16 @@ export default function ProductDetail() {
 
   const form = useForm<z.infer<typeof stockAdjustSchema>>({
     resolver: zodResolver(stockAdjustSchema),
-    defaultValues: { type: 'in' },
+    defaultValues: { type: 'IN' },
   });
+  const selectedType = useWatch({ control: form.control, name: 'type' });
 
   const handleAdjust = async (data: z.infer<typeof stockAdjustSchema>) => {
     try {
       await stockAdjust.mutateAsync({ productId: id!, ...data });
       setShowAdjust(false);
       form.reset();
-      toast({ title: 'Stock adjusted', description: `${data.type === 'in' ? 'Added' : 'Removed'} ${data.quantity} units.`, type: 'success' });
+      toast({ title: 'Stock adjusted', description: `${data.type === 'IN' ? 'Added' : 'Removed'} ${data.quantity} units.`, type: 'success' });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
       toast({ title: 'Error', description: axiosErr?.response?.data?.message || 'Failed to adjust stock.', type: 'error' });
@@ -69,7 +76,7 @@ export default function ProductDetail() {
   const stockPercent = product.minStock > 0 ? Math.min(100, (product.currentStock / (product.minStock * 3)) * 100) : 100;
 
   return (
-    <div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate">
       {/* Header */}
       <div className="flex items-start gap-4 mb-6">
         <Button variant="ghost" size="icon-sm" onClick={() => navigate('/products')} aria-label="Back to products">
@@ -199,16 +206,16 @@ export default function ProductDetail() {
                             <span className="text-sm font-mono text-text-primary tabular-nums">{formatDate(m.createdAt)}</span>
                           </td>
                           <td className="px-3 py-2.5">
-                            <span className={cn('inline-flex items-center gap-1 text-sm font-medium', m.type === 'in' ? 'text-success' : 'text-warning')}>
-                              {m.type === 'in' ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
-                              {m.type === 'in' ? 'IN' : 'OUT'}
+                            <span className={cn('inline-flex items-center gap-1 text-sm font-medium', m.type === 'IN' ? 'text-success' : 'text-warning')}>
+                              {m.type === 'IN' ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
+                              {m.type === 'IN' ? 'IN' : 'OUT'}
                             </span>
                           </td>
                           <td className="px-3 py-2.5 text-right">
                             <span className="text-sm font-mono tabular-nums font-medium text-text-primary">{m.quantity}</span>
                           </td>
                           <td className="px-3 py-2.5 hidden sm:table-cell">
-                            <span className="text-sm text-text-secondary">{m.reason}</span>
+                            <span className="text-sm text-text-secondary">{m.notes || '—'}</span>
                           </td>
                           <td className="px-3 py-2.5 hidden md:table-cell">
                             <span className="text-sm text-text-muted">{m.createdByName}</span>
@@ -237,23 +244,23 @@ export default function ProductDetail() {
             <div className="space-y-1.5">
               <Label>Type *</Label>
               <div className="flex gap-2">
-                {(['in', 'out'] as const).map((t) => (
+                {(['IN', 'OUT'] as const).map((t) => (
                   <label key={t} className={cn(
                     'flex-1 flex items-center justify-center gap-2 p-3 rounded-[var(--radius-md)] border cursor-pointer transition-colors',
-                    form.watch('type') === t
-                      ? t === 'in' ? 'border-success bg-success-bg text-success' : 'border-warning bg-warning-bg text-amber-700'
+                    selectedType === t
+                      ? t === 'IN' ? 'border-success bg-success-bg text-success' : 'border-warning bg-warning-bg text-amber-700'
                       : 'border-border-default hover:bg-bg-elevated text-text-secondary'
                   )}>
                     <input type="radio" value={t} {...form.register('type')} className="sr-only" />
-                    {t === 'in' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                    <span className="text-sm font-medium capitalize">Stock {t}</span>
+                    {t === 'IN' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                    <span className="text-sm font-medium">Stock {t}</span>
                   </label>
                 ))}
               </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="sa-qty">Quantity *</Label>
-              <Input id="sa-qty" type="number" {...form.register('quantity')} className="font-mono" placeholder="0" />
+              <Input id="sa-qty" type="number" {...form.register('quantity', { valueAsNumber: true })} className="font-mono" placeholder="0" />
               {form.formState.errors.quantity && <p className="text-xs text-danger">{form.formState.errors.quantity.message}</p>}
             </div>
             <div className="space-y-1.5">
@@ -268,6 +275,6 @@ export default function ProductDetail() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }

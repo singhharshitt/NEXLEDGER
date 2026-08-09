@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import type { ComponentType } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -17,38 +18,47 @@ import type { Role } from '@/types';
 interface NavItem {
   label: string;
   path: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   roles: Role[];
 }
 
+interface NavContentProps {
+  filteredMain: NavItem[];
+  filteredBottom: NavItem[];
+  sidebarCollapsed: boolean;
+  currentPath: string;
+  setSidebarOpen: (open: boolean) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+}
+
 const mainNavItems: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'sales', 'warehouse', 'accounts'] },
-  { label: 'Customers', path: '/customers', icon: Users, roles: ['admin', 'sales', 'accounts'] },
-  { label: 'Products', path: '/products', icon: Package, roles: ['admin', 'sales', 'warehouse'] },
-  { label: 'Inventory', path: '/stock', icon: Warehouse, roles: ['admin', 'warehouse'] },
-  { label: 'Challans', path: '/challans', icon: FileText, roles: ['admin', 'sales', 'accounts'] },
+  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'SALES', 'WAREHOUSE', 'ACCOUNTS'] },
+  { label: 'Customers', path: '/customers', icon: Users, roles: ['ADMIN', 'SALES', 'ACCOUNTS'] },
+  { label: 'Products', path: '/products', icon: Package, roles: ['ADMIN', 'SALES', 'WAREHOUSE'] },
+  { label: 'Inventory', path: '/inventory', icon: Warehouse, roles: ['ADMIN', 'WAREHOUSE'] },
+  { label: 'Challans', path: '/challans', icon: FileText, roles: ['ADMIN', 'SALES', 'ACCOUNTS'] },
 ];
 
 const bottomNavItems: NavItem[] = [
-  { label: 'Settings', path: '/settings', icon: Settings, roles: ['admin'] },
+  { label: 'Settings', path: '/settings', icon: Settings, roles: ['ADMIN'] },
 ];
 
-export function Sidebar() {
-  const { sidebarOpen, sidebarCollapsed, setSidebarOpen, setSidebarCollapsed } = useUIStore();
-  const user = useAuthStore((s) => s.user);
-  const location = useLocation();
-  const userRole = user?.role || 'admin';
-
-  const filteredMain = mainNavItems.filter((item) => item.roles.includes(userRole));
-  const filteredBottom = bottomNavItems.filter((item) => item.roles.includes(userRole));
-
-  const NavContent = () => (
+function NavContent({
+  filteredMain,
+  filteredBottom,
+  sidebarCollapsed,
+  currentPath,
+  setSidebarOpen,
+  setSidebarCollapsed,
+}: NavContentProps) {
+  return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className={cn(
-        'flex items-center h-16 px-4 border-b border-border-subtle shrink-0',
-        sidebarCollapsed ? 'justify-center' : 'gap-3'
-      )}>
+      <div
+        className={cn(
+          'flex items-center h-16 px-4 border-b border-border-subtle shrink-0',
+          sidebarCollapsed ? 'justify-center' : 'gap-3'
+        )}
+      >
         <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-accent-primary flex items-center justify-center shrink-0">
           <span className="text-text-inverse font-bold text-sm">N</span>
         </div>
@@ -58,7 +68,6 @@ export function Sidebar() {
               <h1 className="text-base font-bold text-text-primary tracking-tight leading-none">NexLedger</h1>
               <p className="text-[10px] text-text-muted uppercase tracking-widest mt-0.5">Operations</p>
             </div>
-            {/* Collapse button — desktop only */}
             <button
               onClick={() => setSidebarCollapsed(true)}
               className="hidden lg:flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-colors"
@@ -79,7 +88,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <div className={cn(!sidebarCollapsed && 'mb-2 px-3')}>
           {!sidebarCollapsed && <span className="text-metadata">Main</span>}
@@ -100,7 +108,10 @@ export function Sidebar() {
                   )
                 }
               >
-                <item.icon className={cn('h-[18px] w-[18px] shrink-0', location.pathname.startsWith(item.path) && 'text-accent-primary')} aria-hidden="true" />
+                <item.icon
+                  className={cn('h-[18px] w-[18px] shrink-0', currentPath.startsWith(item.path) && 'text-accent-primary')}
+                  aria-hidden="true"
+                />
                 {!sidebarCollapsed && <span>{item.label}</span>}
               </NavLink>
             </li>
@@ -108,7 +119,6 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Bottom nav */}
       {filteredBottom.length > 0 && (
         <div className="border-t border-border-subtle px-3 py-4">
           <ul className="space-y-1">
@@ -137,20 +147,36 @@ export function Sidebar() {
       )}
     </div>
   );
+}
+
+export function Sidebar() {
+  const { sidebarOpen, sidebarCollapsed, setSidebarOpen, setSidebarCollapsed } = useUIStore();
+  const user = useAuthStore((s) => s.user);
+  const location = useLocation();
+  const userRole = user?.role || 'ADMIN';
+
+  const filteredMain = mainNavItems.filter((item) => item.roles.includes(userRole));
+  const filteredBottom = bottomNavItems.filter((item) => item.roles.includes(userRole));
+  const navContentProps = {
+    filteredMain,
+    filteredBottom,
+    sidebarCollapsed,
+    setSidebarOpen,
+    setSidebarCollapsed,
+    currentPath: location.pathname,
+  };
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col fixed top-0 left-0 h-full bg-bg-white border-r border-border-subtle z-40 transition-all duration-300 relative',
+          'hidden lg:flex flex-col fixed top-0 left-0 h-full bg-bg-white border-r border-border-subtle z-40 transition-all duration-300',
           sidebarCollapsed ? 'w-[var(--sidebar-collapsed)]' : 'w-[var(--sidebar-width)]'
         )}
       >
-        <NavContent />
+        <NavContent {...navContentProps} />
       </aside>
 
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-50 bg-bg-overlay lg:hidden"
@@ -159,7 +185,6 @@ export function Sidebar() {
         />
       )}
 
-      {/* Mobile sidebar */}
       <aside
         className={cn(
           'fixed top-0 left-0 h-full w-[280px] bg-bg-white border-r border-border-subtle z-50 transition-transform duration-300 lg:hidden',
@@ -173,7 +198,7 @@ export function Sidebar() {
         >
           <X className="h-5 w-5" />
         </button>
-        <NavContent />
+        <NavContent {...navContentProps} />
       </aside>
     </>
   );

@@ -3,16 +3,17 @@
    ============================================================ */
 
 // ── Roles ──
-export type Role = 'admin' | 'sales' | 'warehouse' | 'accounts';
+export type Role = 'ADMIN' | 'SALES' | 'WAREHOUSE' | 'ACCOUNTS';
 
 // ── User ──
+// The UI-facing user model (normalized from server's SafeUser).
 export interface User {
   id: string;
-  name: string;
+  name: string;       // mapped from server's full_name
   email: string;
   role: Role;
   avatar?: string;
-  createdAt: string;
+  createdAt: string;  // mapped from server's created_at
 }
 
 // ── Auth ──
@@ -21,14 +22,27 @@ export interface LoginCredentials {
   password: string;
 }
 
+// Server returns { token, user } where user matches SafeUser shape.
+// We normalize it in authService before exposing to the store.
 export interface AuthResponse {
   token: string;
   user: User;
 }
 
+// Raw server user shape (before normalization)
+export interface ServerUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Customers ──
-export type CustomerType = 'retailer' | 'wholesaler' | 'distributor';
-export type CustomerStatus = 'lead' | 'active' | 'inactive';
+export type CustomerType = 'RETAIL' | 'WHOLESALE' | 'DISTRIBUTOR';
+export type CustomerStatus = 'LEAD' | 'ACTIVE' | 'INACTIVE';
 
 export interface Customer {
   id: string;
@@ -42,7 +56,8 @@ export interface Customer {
   address: string;
   city: string;
   state: string;
-  pincode: string;
+  pincode?: string;        // server mapper doesn't include this; treat as optional
+  creditLimit?: number;    // server returns creditLimit
   followUpDate?: string;
   notes?: string;
   createdAt: string;
@@ -70,12 +85,13 @@ export interface CreateCustomerInput {
   address: string;
   city: string;
   state: string;
-  pincode: string;
+  pincode?: string;
   followUpDate?: string;
   notes?: string;
 }
 
 // ── Products ──
+// StockStatus stays lowercase — computed by server, not stored as a DB enum
 export type StockStatus = 'healthy' | 'low' | 'out';
 
 export interface Product {
@@ -88,7 +104,7 @@ export interface Product {
   currentStock: number;
   minStock: number;
   unit: string;
-  warehouse: string;
+  warehouse?: string;   // server mapProduct doesn't return this; optional
   status: StockStatus;
   createdAt: string;
   updatedAt: string;
@@ -106,7 +122,7 @@ export interface CreateProductInput {
 }
 
 // ── Stock Movements ──
-export type StockMovementType = 'in' | 'out' | 'adjustment';
+export type StockMovementType = 'IN' | 'OUT';
 
 export interface StockMovement {
   id: string;
@@ -114,8 +130,8 @@ export interface StockMovement {
   productName: string;
   type: StockMovementType;
   quantity: number;
-  reason: string;
-  reference?: string;
+  notes: string;        // server returns 'notes'
+  referenceId?: string; // server returns 'referenceId'
   createdBy: string;
   createdByName: string;
   createdAt: string;
@@ -123,13 +139,13 @@ export interface StockMovement {
 
 export interface CreateStockMovementInput {
   productId: string;
-  type: StockMovementType;
+  type: 'IN' | 'OUT';
   quantity: number;
-  reason: string;
+  reason: string; // used as 'notes' when sent to real server
 }
 
 // ── Challans ──
-export type ChallanStatus = 'draft' | 'confirmed' | 'cancelled';
+export type ChallanStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
 
 export interface ChallanItem {
   id: string;
@@ -168,7 +184,7 @@ export interface CreateChallanInput {
     quantity: number;
   }[];
   notes?: string;
-  status: 'draft' | 'confirmed';
+  status: 'DRAFT' | 'CONFIRMED';
 }
 
 // ── Dashboard ──
@@ -219,6 +235,8 @@ export interface CustomerFilters {
   status?: CustomerStatus | 'all';
   type?: CustomerType | 'all';
   followUpOverdue?: boolean;
+  page?: number;
+  limit?: number;
 }
 
 export interface ProductFilters {
@@ -232,4 +250,9 @@ export interface ChallanFilters {
   status?: ChallanStatus | 'all';
   dateFrom?: string;
   dateTo?: string;
+  customerId?: string;
+  limit?: number;
+  sort?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }

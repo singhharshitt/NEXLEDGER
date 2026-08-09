@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion, type Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -14,6 +15,11 @@ import { useInventory, useStockMovements } from '@/hooks/useStock';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatDate, cn } from '@/lib/utils';
 import type { Product, StockMovement, StockStatus } from '@/types';
+
+const pageVariants: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
 
 export default function InventoryPage() {
   const navigate = useNavigate();
@@ -32,7 +38,7 @@ export default function InventoryPage() {
   if (isError) return <ErrorState title="Unable to load inventory" onRetry={() => refetch()} />;
 
   return (
-    <div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate">
       <PageHeader title="Inventory" description="Monitor stock levels and movement history." />
 
       <Tabs defaultValue="stock">
@@ -144,13 +150,13 @@ export default function InventoryPage() {
                             <button onClick={() => navigate(`/products/${m.productId}`)} className="text-sm text-text-primary hover:underline">{m.productName}</button>
                           </td>
                           <td className="px-3 py-2.5">
-                            <span className={cn('inline-flex items-center gap-1 text-sm font-medium', m.type === 'in' ? 'text-success' : 'text-warning')}>
-                              {m.type === 'in' ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
-                              {m.type === 'in' ? 'IN' : 'OUT'}
+                            <span className={cn('inline-flex items-center gap-1 text-sm font-medium', m.type === 'IN' ? 'text-success' : 'text-warning')}>
+                              {m.type === 'IN' ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
+                              {m.type === 'IN' ? 'IN' : 'OUT'}
                             </span>
                           </td>
                           <td className="px-3 py-2.5 text-right"><span className="text-sm font-mono tabular-nums font-medium">{m.quantity}</span></td>
-                          <td className="px-3 py-2.5 hidden sm:table-cell"><span className="text-sm text-text-secondary">{m.reason}</span></td>
+                          <td className="px-3 py-2.5 hidden sm:table-cell"><span className="text-sm text-text-secondary">{m.notes || '—'}</span></td>
                           <td className="px-3 py-2.5 hidden md:table-cell"><span className="text-sm text-text-muted">{m.createdByName}</span></td>
                         </tr>
                       ))}
@@ -162,6 +168,6 @@ export default function InventoryPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   );
 }

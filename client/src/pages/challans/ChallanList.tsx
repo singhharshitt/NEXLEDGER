@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion, type Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -13,6 +14,11 @@ import { useChallans } from '@/hooks/useChallans';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Challan, ChallanStatus } from '@/types';
+
+const pageVariants: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
 
 export default function ChallanList() {
   const navigate = useNavigate();
@@ -30,7 +36,7 @@ export default function ChallanList() {
   if (isError) return <ErrorState title="Unable to load challans" onRetry={() => refetch()} />;
 
   return (
-    <div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate">
       <PageHeader
         title="Sales Challans"
         description="Manage delivery challans and sales documentation."
@@ -48,9 +54,9 @@ export default function ChallanList() {
           <div className="flex gap-1 bg-bg-elevated p-1 rounded-[var(--radius-md)]">
             {[
               { value: 'all', label: 'All' },
-              { value: 'draft', label: 'Draft' },
-              { value: 'confirmed', label: 'Confirmed' },
-              { value: 'cancelled', label: 'Cancelled' },
+              { value: 'DRAFT', label: 'Draft' },
+              { value: 'CONFIRMED', label: 'Confirmed' },
+              { value: 'CANCELLED', label: 'Cancelled' },
             ].map((opt) => (
               <button
                 key={opt.value}
@@ -122,6 +128,6 @@ export default function ChallanList() {
           </div>
         </Card>
       )}
-    </div>
+    </motion.div>
   );
 }

@@ -11,15 +11,36 @@ async function migrate(): Promise<void> {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL UNIQUE,
+      filename TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'schema_migrations'
+          AND column_name = 'name'
+      ) AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'schema_migrations'
+          AND column_name = 'filename'
+      ) THEN
+        ALTER TABLE schema_migrations RENAME COLUMN name TO filename;
+      END IF;
+    END $$;
+  `);
+  await pool.query(`
+    ALTER TABLE schema_migrations
+      ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   `);
 
   for (const file of files) {
     const { rows } = await pool.query(
-      "SELECT 1 FROM schema_migrations WHERE name = $1",
+      "SELECT 1 FROM schema_migrations WHERE filename = $1",
       [file]
     );
     if (rows.length > 0) {
@@ -32,7 +53,7 @@ async function migrate(): Promise<void> {
     try {
       await client.query("BEGIN");
       await client.query(sql);
-      await client.query("INSERT INTO schema_migrations (name) VALUES ($1)", [file]);
+      await client.query("INSERT INTO schema_migrations (filename) VALUES ($1)", [file]);
       await client.query("COMMIT");
       console.log(`✅ Applied ${file}`);
     } catch (error) {

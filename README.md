@@ -204,3 +204,18 @@ To turn this into the full, fact-checked README the original specification calls
 - The key files directly: `package.json`, routes, migrations/schema, `.env.example`, auth middleware, and any existing tests
 
 Once I have those, I'll fill in Sections 7–14 (architecture, stack, auth, API, setup, env vars, testing, security) with verified details and remove the "Not verified" labels.
+
+---
+
+## Demo Accounts (development only)
+
+Seeded by `server/scripts/seed.ts` (bcrypt-hashed). The login page shows a **Demo credentials** helper in development builds (`import.meta.env.DEV`) only.
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@example.com` | `NexLedger@2026!` |
+| Sales | `sales@example.com` | `NexLedger@2026!` |
+| Warehouse | `warehouse@example.com` | `NexLedger@2026!` |
+| Accounts | `accounts@example.com` | `NexLedger@2026!` |
+
+The role selector on `/login` is a UI/UX selection only — the backend remains authoritative. Selecting a role mismatched with the account is rejected with a clear message after real authentication. These credentials are never stored or authenticated with (if → email) style bypasses; all authentication goes through `POST /api/auth/login`.

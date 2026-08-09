@@ -1,20 +1,46 @@
 import api from './api';
-import type { LoginCredentials, AuthResponse, User } from '@/types';
+import { unwrapData } from '@/lib/api-utils';
+import type { LoginCredentials, AuthResponse, User, ServerUser } from '@/types';
+
+// Normalize server's SafeUser shape to the client's User model.
+function toClientUser(serverUser: ServerUser): User {
+  return {
+    id: serverUser.id,
+    name: serverUser.full_name,
+    email: serverUser.email,
+    role: serverUser.role,
+    createdAt: serverUser.created_at,
+  };
+}
 
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const { data } = await api.post('/auth/login', credentials);
-    return data;
+    const response = await api.post('/auth/login', credentials);
+    // Server returns: { success: true, data: { token, user } }
+    // where user is SafeUser (with full_name, is_active, etc.)
+    const data = unwrapData<{ token: string; user: ServerUser }>(response);
+    return {
+      token: data.token,
+      user: toClientUser(data.user),
+    };
   },
 
   getMe: async (): Promise<User> => {
-    const { data } = await api.get('/auth/me');
-    return data.user;
+    const response = await api.get('/auth/me');
+    // Server returns: { success: true, data: { user: SafeUser } }
+    const data = unwrapData<{ user: ServerUser }>(response);
+    return toClientUser(data.user);
   },
 
-  logout: () => {
-    localStorage.removeItem('nexledger_token');
-    localStorage.removeItem('nexledger_user');
+  logout: async (): Promise<void> => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Stateless JWT — clearing local storage is sufficient.
+    } finally {
+      localStorage.removeItem('nexledger_token');
+      localStorage.removeItem('nexledger_user');
+    }
   },
 
   getToken: (): string | null => {
@@ -33,7 +59,7 @@ export const authService = {
     const stored = localStorage.getItem('nexledger_user');
     if (stored) {
       try {
-        return JSON.parse(stored);
+        return JSON.parse(stored) as User;
       } catch {
         return null;
       }

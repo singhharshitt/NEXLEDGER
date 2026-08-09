@@ -17,7 +17,7 @@ export const listUsers = asyncHandler(async (_req: AuthenticatedRequest, res: Re
  * Role: ADMIN only
  */
 export const getUser = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const user = await usersService.getUserById(req.params.id);
+  const user = await usersService.getUserById(req.params.id as string);
   res.status(200).json({ success: true, data: user });
 });
 
@@ -49,7 +49,7 @@ export const updateUser = asyncHandler(async (req: AuthenticatedRequest, res: Re
     role?: string;
     isActive?: boolean;
   };
-  const user = await usersService.updateUser(req.params.id, {
+  const user = await usersService.updateUser(req.params.id as string, {
     fullName: name,
     email,
     role,

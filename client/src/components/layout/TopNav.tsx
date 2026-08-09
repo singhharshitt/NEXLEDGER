@@ -77,7 +77,7 @@ export function TopNav() {
             </div>
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-text-primary leading-none">{user?.name || 'User'}</p>
-              <p className="text-xs text-text-muted capitalize mt-0.5">{user?.role || 'admin'}</p>
+              <p className="text-xs text-text-muted capitalize mt-0.5">{user?.role || 'ADMIN'}</p>
             </div>
           </button>
 

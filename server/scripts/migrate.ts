@@ -5,12 +5,35 @@ import { pool, closeDatabase } from '../src/config/database';
 const MIGRATIONS_DIR = path.resolve(__dirname, '../migrations');
 
 async function runMigrations(): Promise<void> {
-  // Ensure schema_migrations table exists with the correct schema
+  // Ensure schema_migrations table exists, then normalize older installs
+  // that used `name` instead of the canonical `filename`.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       filename   TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'schema_migrations'
+          AND column_name = 'name'
+      ) AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'schema_migrations'
+          AND column_name = 'filename'
+      ) THEN
+        ALTER TABLE schema_migrations RENAME COLUMN name TO filename;
+      END IF;
+    END $$;
+  `);
+  await pool.query(`
+    ALTER TABLE schema_migrations
+      ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   `);
 
   const files = fs.readdirSync(MIGRATIONS_DIR)

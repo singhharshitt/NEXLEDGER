@@ -1,3 +1,4 @@
+import { motion, type Variants } from 'framer-motion';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, X, Eye, Pencil } from 'lucide-react';
@@ -26,13 +27,18 @@ const productSchema = z.object({
   sku: z.string().min(2, 'SKU is required'),
   category: z.string().min(1, 'Category is required'),
   description: z.string().optional(),
-  unitPrice: z.coerce.number().positive('Price must be positive'),
-  minStock: z.coerce.number().int().nonnegative('Min stock must be 0 or more'),
+  unitPrice: z.number().positive('Price must be positive'),
+  minStock: z.number().int().nonnegative('Min stock must be 0 or more'),
   unit: z.string().min(1, 'Unit is required'),
   warehouse: z.string().min(1, 'Warehouse is required'),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
+
+const pageVariants: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
 
 export default function ProductList() {
   const navigate = useNavigate();
@@ -71,7 +77,7 @@ export default function ProductList() {
   if (isError) return <ErrorState title="Unable to load products" onRetry={() => refetch()} />;
 
   return (
-    <div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate">
       <PageHeader
         title="Products"
         description="Manage your product catalog and inventory."
@@ -194,12 +200,12 @@ export default function ProductList() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-price">Unit Price (₹) *</Label>
-                <Input id="p-price" type="number" step="0.01" {...form.register('unitPrice')} className="font-mono" />
+                <Input id="p-price" type="number" step="0.01" {...form.register('unitPrice', { valueAsNumber: true })} className="font-mono" />
                 {form.formState.errors.unitPrice && <p className="text-xs text-danger">{form.formState.errors.unitPrice.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-minstock">Minimum Stock *</Label>
-                <Input id="p-minstock" type="number" {...form.register('minStock')} className="font-mono" />
+                <Input id="p-minstock" type="number" {...form.register('minStock', { valueAsNumber: true })} className="font-mono" />
                 {form.formState.errors.minStock && <p className="text-xs text-danger">{form.formState.errors.minStock.message}</p>}
               </div>
               <div className="space-y-1.5">
@@ -231,6 +237,6 @@ export default function ProductList() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }

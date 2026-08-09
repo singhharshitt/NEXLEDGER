@@ -14,10 +14,7 @@ const EnvSchema = z.object({
 }).superRefine((val, ctx) => {
   if (val.NODE_ENV === 'production' && val.JWT_SECRET.length < 32) {
     ctx.addIssue({
-      code: z.ZodIssueCode.too_small,
-      minimum: 32,
-      type: 'string',
-      inclusive: true,
+      code: 'custom',
       message: 'JWT_SECRET must be at least 32 characters in production',
     });
   }
@@ -30,7 +27,7 @@ try {
 } catch (error) {
   if (error instanceof z.ZodError) {
     console.error('❌ Environment validation failed:');
-    error.errors.forEach((e) => {
+    error.issues.forEach((e) => {
       console.error(`  - ${e.path.join('.')}: ${e.message}`);
     });
   } else {

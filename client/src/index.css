@@ -1,57 +1,83 @@
 @import "tailwindcss";
 
 /* ============================================================
-   NEXLEDGER DESIGN SYSTEM — Tailwind v4 Theme
+   NEXLEDGER DESIGN SYSTEM — Tailwind v4
    ============================================================ */
 
-@theme {
-  /* ── Colors: Primary ── */
-  --color-bg-primary: #F3F7F3;
-  --color-bg-white: #FFFFFF;
+@theme static {
+  /* ── Colors: Background ── */
+  --color-bg-primary: #f3f7f3;
+  --color-bg-white: #ffffff;
   --color-bg-dark: #142814;
-  --color-bg-card: #FFFFFF;
-  --color-bg-elevated: #EEF5EE;
-  --color-bg-muted: #F8FAF8;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #eef5ee;
+  --color-bg-muted: #f8faf8;
   --color-bg-overlay: rgba(10, 31, 10, 0.5);
 
   /* ── Colors: Text ── */
-  --color-text-primary: #0A1F0A;
-  --color-text-secondary: #5A6B5A;
-  --color-text-muted: #8A9A8A;
-  --color-text-inverse: #FFFFFF;
-  --color-text-accent: #A3E635;
+  --color-text-primary: #0a1f0a;
+  --color-text-secondary: #5a6b5a;
+  --color-text-muted: #8a9a8a;
+  --color-text-inverse: #ffffff;
+  --color-text-accent: #a3e635;
 
   /* ── Colors: Border ── */
-  --color-border-default: #D4E4D4;
-  --color-border-subtle: #E2EFE2;
+  --color-border-default: #d4e4d4;
+  --color-border-subtle: #e2efe2;
   --color-border-focus: #142814;
 
   /* ── Colors: Accent ── */
   --color-accent-primary: #142814;
-  --color-accent-lime: #B8E986;
-  --color-accent-lime-bright: #A3E635;
-  --color-accent-hover: #1E3C1E;
+  --color-accent-lime: #b8e986;
+  --color-accent-lime-bright: #a3e635;
+  --color-accent-hover: #1e3c1e;
+
+  /* ── Colors: Auth ── */
+  --color-forest: #0f1f0f;
+  --color-forest-soft: rgba(10, 31, 10, 0.08);
+  --color-mint: #f0f4f0;
+  --color-mint-line: #e2efe2;
+  --color-accent-pink: #f472b6;
+  --color-accent-pink-soft: #fdf2f8;
+  --color-accent-lime-soft: #f7fee7;
 
   /* ── Colors: Semantic ── */
-  --color-danger: #DC2626;
-  --color-danger-bg: #FEF2F2;
-  --color-danger-border: #FECACA;
-  --color-warning: #F59E0B;
-  --color-warning-bg: #FFFBEB;
-  --color-warning-border: #FDE68A;
-  --color-success: #16A34A;
-  --color-success-bg: #F0FDF4;
-  --color-success-border: #BBF7D0;
-  --color-info: #2563EB;
-  --color-info-bg: #EFF6FF;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+
+  --color-info: #2563eb;
+  --color-info-bg: #eff6ff;
 
   /* ── Shadows ── */
-  --shadow-sm: 0 1px 2px 0 rgba(10, 31, 10, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(10, 31, 10, 0.06), 0 2px 4px -2px rgba(10, 31, 10, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(10, 31, 10, 0.06), 0 4px 6px -4px rgba(10, 31, 10, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(10, 31, 10, 0.06), 0 8px 10px -6px rgba(10, 31, 10, 0.04);
-  --shadow-glow: 0 0 20px rgba(163, 230, 53, 0.15);
-  --shadow-card-hover: 0 8px 25px -5px rgba(10, 31, 10, 0.08);
+  --shadow-sm:
+    0 1px 2px 0 rgba(10, 31, 10, 0.04);
+
+  --shadow-md:
+    0 4px 6px -1px rgba(10, 31, 10, 0.06),
+    0 2px 4px -2px rgba(10, 31, 10, 0.04);
+
+  --shadow-lg:
+    0 10px 15px -3px rgba(10, 31, 10, 0.06),
+    0 4px 6px -4px rgba(10, 31, 10, 0.04);
+
+  --shadow-xl:
+    0 20px 25px -5px rgba(10, 31, 10, 0.06),
+    0 8px 10px -6px rgba(10, 31, 10, 0.04);
+
+  --shadow-glow:
+    0 0 20px rgba(163, 230, 53, 0.15);
+
+  --shadow-card-hover:
+    0 8px 25px -5px rgba(10, 31, 10, 0.08);
 
   /* ── Radius ── */
   --radius-sm: 6px;
@@ -60,57 +86,113 @@
   --radius-xl: 24px;
   --radius-full: 9999px;
 
-  /* ── Typography: Font Families ── */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  /* ── Typography ── */
+  --font-sans:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 
-  /* ── Spacing: Sidebar ── */
+  --font-mono:
+    "JetBrains Mono",
+    ui-monospace,
+    "Cascadia Code",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  --font-display:
+    "Space Grotesk",
+    "Inter",
+    system-ui,
+    sans-serif;
+
+  /* ── Layout ── */
   --sidebar-width: 256px;
   --sidebar-collapsed: 64px;
   --topnav-height: 64px;
 
-  /* ── Transitions ── */
+  /* ── Animation ── */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* ── Animation ── */
-  --animate-fade-in: fade-in 0.3s var(--ease-out-expo);
-  --animate-slide-up: slide-up 0.4s var(--ease-out-expo);
-  --animate-slide-in-right: slide-in-right 0.3s var(--ease-out-expo);
+  --animate-fade-in:
+    fade-in 0.3s var(--ease-out-expo);
+
+  --animate-slide-up:
+    slide-up 0.4s var(--ease-out-expo);
+
+  --animate-slide-in-right:
+    slide-in-right 0.3s var(--ease-out-expo);
+
+  --animate-float:
+    float 4s ease-in-out infinite;
 }
 
 /* ============================================================
    KEYFRAMES
    ============================================================ */
+
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 /* ============================================================
    BASE STYLES
    ============================================================ */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+
 
 html {
   font-size: 14px;
@@ -134,20 +216,29 @@ body {
   flex-direction: column;
 }
 
-/* ── Focus styles ── */
+/* ============================================================
+   FOCUS
+   ============================================================ */
+
 :focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
-/* ── Selection ── */
+/* ============================================================
+   TEXT SELECTION
+   ============================================================ */
+
 ::selection {
   background-color: var(--color-accent-lime);
   color: var(--color-accent-primary);
 }
 
-/* ── Scrollbar ── */
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -169,6 +260,7 @@ body {
 /* ============================================================
    TYPOGRAPHY UTILITIES
    ============================================================ */
+
 .text-display {
   font-size: 3.5rem;
   font-weight: 700;
@@ -242,7 +334,6 @@ body {
   color: var(--color-text-muted);
 }
 
-/* ── Tabular numbers for financial data ── */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
@@ -250,6 +341,7 @@ body {
 /* ============================================================
    REDUCED MOTION
    ============================================================ */
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

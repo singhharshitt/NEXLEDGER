@@ -22,16 +22,18 @@ export function useStockChart() {
   });
 }
 
-export function useRecentChallans() {
+export function useRecentChallans(enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'recent-challans'],
     queryFn: dashboardService.getRecentChallans,
+    enabled,
   });
 }
 
-export function useLowStock() {
+export function useLowStock(enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'low-stock'],
     queryFn: dashboardService.getLowStock,
+    enabled,
   });
 }

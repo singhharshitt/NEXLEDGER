@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { motion, type Variants } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Search, Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/data-display/EmptyState';
-import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomers, useCustomer } from '@/hooks/useCustomers';
 import { useProducts } from '@/hooks/useProducts';
 import { useCreateChallan } from '@/hooks/useChallans';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -21,12 +22,18 @@ interface ChallanLineItem {
   quantity: number;
 }
 
+const pageVariants: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
+
 export default function CreateChallan() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedCustomerId = searchParams.get('customer');
 
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [manualCustomer, setManualCustomer] = useState<Customer | null>(null);
+  const [usePreselectedCustomer, setUsePreselectedCustomer] = useState(true);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerList, setShowCustomerList] = useState(false);
   const [productSearch, setProductSearch] = useState('');
@@ -38,19 +45,14 @@ export default function CreateChallan() {
   const debouncedCustomerSearch = useDebounce(customerSearch);
   const debouncedProductSearch = useDebounce(productSearch);
 
-  const { data: customersData } = useCustomers({ search: debouncedCustomerSearch });
-  const { data: productsData } = useProducts({ search: debouncedProductSearch });
+  const { data: customersData, isLoading: loadingCustomers } = useCustomers({ search: debouncedCustomerSearch });
+  const { data: productsData, isLoading: loadingProducts } = useProducts({ search: debouncedProductSearch });
+  const { data: preselectedCustomer } = useCustomer(preselectedCustomerId ?? '');
   const createChallan = useCreateChallan();
-
-  // Preselect customer if provided via URL
-  const { data: preCustomersData } = useCustomers(preselectedCustomerId ? { search: '' } : undefined);
-  if (preselectedCustomerId && !selectedCustomer && preCustomersData?.data) {
-    const found = preCustomersData.data.find((c: Customer) => c.id === preselectedCustomerId);
-    if (found) setSelectedCustomer(found);
-  }
 
   const customers = customersData?.data || [];
   const products = productsData?.data || [];
+  const selectedCustomer = manualCustomer ?? (usePreselectedCustomer ? preselectedCustomer : null);
 
   const addedProductIds = useMemo(() => new Set(lineItems.map((li) => li.productId)), [lineItems]);
 
@@ -110,7 +112,7 @@ export default function CreateChallan() {
     return true;
   };
 
-  const handleSubmit = async (status: 'draft' | 'confirmed') => {
+  const handleSubmit = async (status: 'DRAFT' | 'CONFIRMED') => {
     if (!validate()) return;
     try {
       const result = await createChallan.mutateAsync({
@@ -120,7 +122,7 @@ export default function CreateChallan() {
         status,
       });
       toast({
-        title: status === 'confirmed' ? 'Challan confirmed' : 'Draft saved',
+        title: status === 'CONFIRMED' ? 'Challan confirmed' : 'Draft saved',
         description: `Challan ${result.challanNumber} created successfully.`,
         type: 'success',
       });
@@ -132,7 +134,7 @@ export default function CreateChallan() {
   };
 
   return (
-    <div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" size="icon-sm" onClick={() => navigate('/challans')} aria-label="Back to challans">
@@ -160,7 +162,7 @@ export default function CreateChallan() {
                   <p className="text-sm font-medium text-text-primary">{selectedCustomer.name}</p>
                   <p className="text-xs text-text-muted">{selectedCustomer.businessName} · <span className="capitalize">{selectedCustomer.type}</span></p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => { setSelectedCustomer(null); setShowCustomerList(false); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setManualCustomer(null); setUsePreselectedCustomer(false); setShowCustomerList(false); }}>
                   Change
                 </Button>
               </div>
@@ -173,13 +175,19 @@ export default function CreateChallan() {
                   onChange={(e) => { setCustomerSearch(e.target.value); setShowCustomerList(true); }}
                   onFocus={() => setShowCustomerList(true)}
                   className="pl-9"
+                  disabled={loadingCustomers}
                 />
-                {showCustomerList && customers.length > 0 && (
+                {loadingCustomers && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-text-muted" aria-hidden="true" />
+                  </div>
+                )}
+                {showCustomerList && !loadingCustomers && customers.length > 0 && (
                   <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-bg-white border border-border-default rounded-[var(--radius-md)] shadow-lg max-h-60 overflow-y-auto">
                     {customers.map((c: Customer) => (
                       <button
                         key={c.id}
-                        onClick={() => { setSelectedCustomer(c); setShowCustomerList(false); setCustomerSearch(''); }}
+                        onClick={() => { setManualCustomer(c); setUsePreselectedCustomer(false); setShowCustomerList(false); setCustomerSearch(''); }}
                         className="w-full text-left px-4 py-2.5 hover:bg-bg-elevated transition-colors border-b border-border-subtle last:border-0"
                       >
                         <p className="text-sm font-medium text-text-primary">{c.name}</p>
@@ -211,8 +219,14 @@ export default function CreateChallan() {
                 onChange={(e) => { setProductSearch(e.target.value); setShowProductList(true); }}
                 onFocus={() => setShowProductList(true)}
                 className="pl-9"
+                disabled={loadingProducts}
               />
-              {showProductList && productSearch && availableProducts.length > 0 && (
+              {loadingProducts && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-text-muted" aria-hidden="true" />
+                </div>
+              )}
+              {showProductList && !loadingProducts && productSearch && availableProducts.length > 0 && (
                 <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-bg-white border border-border-default rounded-[var(--radius-md)] shadow-lg max-h-60 overflow-y-auto">
                   {availableProducts.map((p: Product) => (
                     <button
@@ -322,14 +336,14 @@ export default function CreateChallan() {
               <Button
                 variant="outline"
                 className="flex-1 sm:flex-initial"
-                onClick={() => handleSubmit('draft')}
+                onClick={() => handleSubmit('DRAFT')}
                 disabled={createChallan.isPending}
               >
                 Save as Draft
               </Button>
               <Button
                 className="flex-1 sm:flex-initial"
-                onClick={() => handleSubmit('confirmed')}
+                onClick={() => handleSubmit('CONFIRMED')}
                 disabled={createChallan.isPending}
               >
                 {createChallan.isPending ? (
@@ -340,6 +354,6 @@ export default function CreateChallan() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

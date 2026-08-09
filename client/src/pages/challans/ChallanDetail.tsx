@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, type Variants } from 'framer-motion';
 import { ArrowLeft, Building2, CheckCircle2, XCircle, Clock, FileText } from 'lucide-react';
 import { useChallan, useConfirmChallan, useCancelChallan } from '@/hooks/useChallans';
 import { StatusBadge } from '@/components/data-display/StatusBadge';
@@ -11,6 +12,11 @@ import { formatCurrency, formatDate, formatDateTime, cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import { useState } from 'react';
 import type { ChallanItem } from '@/types';
+
+const pageVariants: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
 
 export default function ChallanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -63,7 +69,7 @@ export default function ChallanDetail() {
   ];
 
   return (
-    <div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate">
       {/* Header */}
       <div className="flex items-start gap-4 mb-6">
         <Button variant="ghost" size="icon-sm" onClick={() => navigate('/challans')} aria-label="Back to challans">
@@ -77,7 +83,7 @@ export default function ChallanDetail() {
           <p className="text-body-sm text-text-muted mt-1">Created by {challan.createdByName} · {formatDate(challan.createdAt)}</p>
         </div>
         <div className="flex gap-2 shrink-0">
-          {challan.status === 'draft' && (
+          {challan.status === 'DRAFT' && (
             <>
               <Button variant="outline" onClick={() => setShowCancel(true)}>Cancel</Button>
               <Button onClick={() => setShowConfirm(true)}>
@@ -199,7 +205,7 @@ export default function ChallanDetail() {
                     <p className="text-xs font-mono text-text-muted">{formatDateTime(event.date)}</p>
                   </div>
                 ))}
-                {challan.status === 'draft' && (
+                {challan.status === 'DRAFT' && (
                   <div className="relative pl-6">
                     <div className="absolute left-0 top-0.5 text-text-muted">
                       <Clock className="h-[14px] w-[14px]" />
@@ -255,6 +261,6 @@ export default function ChallanDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }

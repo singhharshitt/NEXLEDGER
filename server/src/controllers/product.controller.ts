@@ -31,7 +31,7 @@ export const listProducts = asyncHandler(async (req: AuthenticatedRequest, res: 
  * Role: ADMIN, SALES, WAREHOUSE, ACCOUNTS
  */
 export const getProduct = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const product = await productsService.getProductById(req.params.id);
+  const product = await productsService.getProductById(req.params.id as string);
 
   res.status(200).json({
     success: true,
@@ -57,7 +57,7 @@ export const createProduct = asyncHandler(async (req: AuthenticatedRequest, res:
  * Role: ADMIN, WAREHOUSE (limited fields)
  */
 export const updateProduct = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const product = await productsService.updateProduct(req.params.id, req.body);
+  const product = await productsService.updateProduct(req.params.id as string, req.body);
 
   res.status(200).json({
     success: true,
@@ -83,7 +83,7 @@ export const getCategories = asyncHandler(async (_req: AuthenticatedRequest, res
  * Role: ADMIN, WAREHOUSE
  */
 export const getStockMovements = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const movements = await productsService.getStockMovements(req.params.id);
+  const movements = await productsService.getStockMovements(req.params.id as string);
 
   res.status(200).json({
     success: true,
@@ -101,7 +101,7 @@ export const adjustStockByProduct = asyncHandler(async (req: AuthenticatedReques
   const movementType = toDbMovementType(type);
 
   const result = await stockService.adjustStock(
-    req.params.id,
+    req.params.id as string,
     { type: movementType as 'IN' | 'OUT', quantity, notes },
     req.user!.userId
   );

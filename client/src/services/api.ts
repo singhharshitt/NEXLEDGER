@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { setupMockApi } from './mock-api';
+import { getApiErrorMessage } from '@/lib/api-utils';
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,7 +8,6 @@ const api = axios.create({
   },
 });
 
-// Request interceptor: attach auth token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('nexledger_token');
   if (token) {
@@ -17,20 +16,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor: handle 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('nexledger_token');
-      localStorage.removeItem('nexledger_user');
-      window.location.href = '/login';
+      const isLoginRequest = error.config?.url?.includes('/auth/login');
+      if (!isLoginRequest) {
+        localStorage.removeItem('nexledger_token');
+        localStorage.removeItem('nexledger_user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
     }
+
+    error.message = getApiErrorMessage(error);
     return Promise.reject(error);
   }
 );
-
-// Setup mock API interceptors (remove when real backend is ready)
-setupMockApi(api);
 
 export default api;

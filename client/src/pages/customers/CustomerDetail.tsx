@@ -1,3 +1,4 @@
+import { motion, type Variants } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, MapPin, FileText as FileTextIcon, Building2, Hash, Pencil, Plus, Calendar } from 'lucide-react';
 import { useCustomer, useCustomerFollowUps, useAddFollowUp } from '@/hooks/useCustomers';
@@ -23,6 +24,11 @@ const followUpSchema = z.object({
   date: z.string().min(1, 'Date is required'),
   notes: z.string().min(1, 'Notes are required'),
 });
+
+const pageVariants: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -62,12 +68,12 @@ export default function CustomerDetail() {
   const infoItems = [
     { icon: Mail, label: 'Email', value: customer.email },
     { icon: Phone, label: 'Mobile', value: customer.mobile, mono: true },
-    { icon: MapPin, label: 'Address', value: `${customer.address}, ${customer.city}, ${customer.state} ${customer.pincode}` },
+    { icon: MapPin, label: 'Address', value: [customer.address, customer.city, customer.state, customer.pincode].filter(Boolean).join(', ') || '—' },
     { icon: Hash, label: 'GST', value: customer.gst || '—', mono: true },
   ];
 
   return (
-    <div>
+    <motion.div variants={pageVariants} initial="initial" animate="animate">
       {/* Header */}
       <div className="flex items-start gap-4 mb-6">
         <Button variant="ghost" size="icon-sm" onClick={() => navigate('/customers')} aria-label="Back to customers">
@@ -222,6 +228,6 @@ export default function CustomerDetail() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }

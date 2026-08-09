@@ -12,7 +12,7 @@ export interface JwtPayload {
 export function signToken(payload: JwtPayload): string {
 
   const options: SignOptions = {
-    expiresIn: env.JWT_EXPIRES_IN as string, // "1d" | "7d" | "30d" etc.
+    expiresIn: env.JWT_EXPIRES_IN as unknown as SignOptions['expiresIn'],
   };
 
   return jwt.sign(payload, env.JWT_SECRET, options);

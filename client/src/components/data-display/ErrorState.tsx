@@ -9,7 +9,7 @@ interface ErrorStateProps {
 
 export function ErrorState({
   title = 'Something went wrong',
-  message = 'Unable to load data. Please try again.',
+  message,
   onRetry,
 }: ErrorStateProps) {
   return (
@@ -18,7 +18,7 @@ export function ErrorState({
         <AlertTriangle className="h-6 w-6 text-danger" aria-hidden="true" />
       </div>
       <h3 className="text-base font-semibold text-text-primary mb-1">{title}</h3>
-      <p className="text-sm text-text-muted max-w-sm">{message}</p>
+      {message && <p className="text-sm text-text-muted max-w-sm">{message}</p>}
       {onRetry && (
         <Button onClick={onRetry} variant="outline" size="sm" className="mt-4">
           <RefreshCw className="h-4 w-4 mr-1" aria-hidden="true" />
